@@ -37,6 +37,48 @@ const uid = (p) => p + '_' + Date.now().toString(36) + crypto.randomBytes(3).toS
 const addMonths = (date, n) => { const d = new Date(date); d.setMonth(d.getMonth() + n); return d; };
 const clean = (v, max) => String(v == null ? '' : v).trim().slice(0, max || 4000);
 
+/* ---------------------------------- PIX --------------------------------- */
+
+const PIX_TYPES = ['cpf', 'cnpj', 'email', 'telefone', 'aleatoria'];
+const PLATFORM_PIX = {
+  key: clean(process.env.PLATFORM_PIX_KEY, 140) || 'financeiro@domalphaajato.com',
+  holder: clean(process.env.PLATFORM_PIX_HOLDER, 80) || 'DOM ALPHA AJATO'
+};
+
+function normalizePix(type, rawKey) {
+  const t = PIX_TYPES.includes(String(type || '').toLowerCase()) ? String(type).toLowerCase() : 'aleatoria';
+  const digits = String(rawKey || '').replace(/\D/g, '');
+  let value = clean(rawKey, 140);
+  if (!value) return { error: 'Informe a chave PIX.' };
+  if (t === 'email') {
+    value = value.toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value)) return { error: 'Chave PIX de e-mail inválida.' };
+  } else if (t === 'cpf') {
+    if (digits.length !== 11) return { error: 'A chave PIX de CPF precisa ter 11 números.' };
+    value = digits;
+  } else if (t === 'cnpj') {
+    if (digits.length !== 14) return { error: 'A chave PIX de CNPJ precisa ter 14 números.' };
+    value = digits;
+  } else if (t === 'telefone') {
+    if (digits.length < 10 || digits.length > 13) return { error: 'Telefone da chave PIX inválido. Use DDD + número.' };
+    value = digits;
+  } else if (value.length < 8) {
+    return { error: 'Chave aleatória inválida.' };
+  }
+  return { type: t, value };
+}
+
+function maskPix(key) {
+  const v = String(key || '');
+  if (!v) return '';
+  if (v.includes('@')) {
+    const parts = v.split('@');
+    return parts[0].slice(0, 2) + '***@' + parts[1];
+  }
+  if (v.length <= 6) return '***' + v.slice(-2);
+  return v.slice(0, 3) + '***' + v.slice(-2);
+}
+
 function hashPassword(password, salt) {
   const s = salt || crypto.randomBytes(16).toString('hex');
   return { salt: s, hash: crypto.scryptSync(String(password), s, 64).toString('hex') };
@@ -62,6 +104,9 @@ function makeUser(input) {
     category: clean(input.category, 80),
     bio: clean(input.bio, 1200),
     phone: clean(input.phone, 30),
+    pixKey: null,
+    pixKeyType: null,
+    pixHolder: clean(input.pixHolder, 80),
     photo: null,
     skills: [],
     points: 0,
@@ -236,9 +281,17 @@ function pub(u, viewer) {
     jobsDone: u.jobsDone || 0, ratingCount: u.ratingCount || 0,
     rating: u.ratingCount ? Number((u.ratingSum / u.ratingCount).toFixed(2)) : 0,
     plan: u.plan || null, status: u.status || 'ativo', createdAt: u.createdAt,
-    phone: u.phone || ''
+    phone: u.phone || '',
+    pixKeyType: u.pixKeyType || null,
+    hasPix: !!u.pixKey,
+    pixKeyMasked: u.pixKey ? maskPix(u.pixKey) : ''
   };
-  if (viewer && (viewer.id === u.id || ['admin', 'owner'].includes(viewer.role))) out.email = u.email;
+  const privileged = !!viewer && (viewer.id === u.id || ['admin', 'owner'].includes(viewer.role));
+  if (privileged) {
+    out.email = u.email;
+    out.pixKey = u.pixKey || '';
+    out.pixHolder = u.pixHolder || '';
+  }
   return out;
 }
 
@@ -301,6 +354,15 @@ app.post('/api/auth/register', (req, res) => {
   });
   if (role !== 'client' && !user.category) user.category = 'Reformas em geral';
 
+  const pixKeyRaw = clean(body.pixKey, 140);
+  if (pixKeyRaw) {
+    const pix = normalizePix(body.pixKeyType, pixKeyRaw);
+    if (pix.error) return res.status(400).json({ error: pix.error });
+    user.pixKey = pix.value;
+    user.pixKeyType = pix.type;
+  }
+  user.pixHolder = clean(body.pixHolder || user.name, 80);
+
   db.users.push(user);
   const token = crypto.randomBytes(24).toString('hex');
   db.sessions[token] = user.id;
@@ -351,6 +413,19 @@ app.patch('/api/me', auth(true), (req, res) => {
   if (body.skills !== undefined && Array.isArray(body.skills)) {
     u.skills = body.skills.slice(0, 12).map((s) => clean(s, 40)).filter(Boolean);
   }
+  if (body.pixKey !== undefined) {
+    const pixRaw = clean(body.pixKey, 140);
+    if (!pixRaw) {
+      u.pixKey = null;
+      u.pixKeyType = null;
+    } else {
+      const pix = normalizePix(body.pixKeyType || u.pixKeyType, pixRaw);
+      if (pix.error) return res.status(400).json({ error: pix.error });
+      u.pixKey = pix.value;
+      u.pixKeyType = pix.type;
+    }
+  }
+  if (body.pixHolder !== undefined) u.pixHolder = clean(body.pixHolder, 80);
   if (body.photo !== undefined) {
     if (body.photo === null) u.photo = null;
     else if (typeof body.photo === 'string' && /^data:image\//.test(body.photo) && body.photo.length < 3_000_000) u.photo = body.photo;
@@ -416,27 +491,46 @@ app.get('/api/ranking', (req, res) => {
 /* --------------------------------- planos ------------------------------- */
 
 app.get('/api/plans', (req, res) => {
-  res.json({ plans: PLANS, cycle: db.rankingCycle });
+  res.json({
+    plans: PLANS,
+    cycle: db.rankingCycle,
+    platformPix: { key: PLATFORM_PIX.key, holder: PLATFORM_PIX.holder }
+  });
 });
 
 app.post('/api/plans/subscribe', auth(true), (req, res) => {
-  const key = (req.body || {}).plan;
+  const body = req.body || {};
+  const key = body.plan;
   const plan = PLANS[key];
   if (!plan) return res.status(400).json({ error: 'Plano inválido.' });
   if (req.user.role !== key) {
     return res.status(400).json({ error: 'Este plano é exclusivo para ' + (key === 'helper' ? 'ajudantes.' : 'profissionais.') });
   }
+  if (!req.user.pixKey) {
+    return res.status(400).json({
+      error: 'Cadastre sua chave PIX no perfil antes de assinar o plano.',
+      code: 'pix_missing'
+    });
+  }
+  const proof = clean(body.pixProof, 80);
+  if (!proof) {
+    return res.status(400).json({
+      error: 'O pagamento é por PIX. Pague a chave da plataforma e informe o ID da transação.',
+      code: 'pix_proof_required',
+      payment: { amount: plan.price, planName: plan.name, pixKey: PLATFORM_PIX.key, holder: PLATFORM_PIX.holder }
+    });
+  }
 
   const until = addMonths(new Date(), plan.durationMeses);
-  req.user.plan = { key: plan.key, name: plan.name, since: nowISO(), until: until.toISOString() };
+  req.user.plan = { key: plan.key, name: plan.name, since: nowISO(), until: until.toISOString(), paidWith: 'pix', proof };
   addPoints(req.user, plan.points);
   db.ledger.push({
-    id: uid('l'), uid: req.user.id, type: 'assinatura', amount: plan.price,
-    desc: 'Assinatura ' + plan.name + ' (' + plan.durationMeses + ' meses)', date: nowISO()
+    id: uid('l'), uid: req.user.id, type: 'assinatura', method: 'pix', proof, amount: plan.price,
+    desc: 'Assinatura ' + plan.name + ' (' + plan.durationMeses + ' meses) paga via PIX', date: nowISO()
   });
-  notify(req.user.id, 'Plano ' + plan.name + ' ativado! Você ganhou ' + plan.points + ' pontos e destaque no PERFUME.');
+  notify(req.user.id, 'Pagamento PIX registrado. Plano ' + plan.name + ' ativado! Você ganhou ' + plan.points + ' pontos e destaque no PERFUME.');
   writeDB();
-  res.json({ user: pub(req.user, req.user), plan: req.user.plan });
+  res.json({ user: pub(req.user, req.user), plan: req.user.plan, paid: true, proof });
 });
 
 /* ------------------------------ oportunidades --------------------------- */
@@ -511,7 +605,26 @@ app.get('/api/jobs/:id', auth(true), (req, res) => {
       proName: (db.users.find((u) => u.id === p.proId) || {}).name || 'Profissional',
       proRating: pub(db.users.find((u) => u.id === p.proId)) || null
     }));
-  res.json({ job: jobView(job, req.user), proposals });
+  let payment = null;
+  if (owner && job.hiredProId) {
+    const pro = db.users.find((u) => u.id === job.hiredProId);
+    const contract = db.contracts.find((c) => c.jobId === job.id && c.status !== 'cancelado');
+    if (pro) {
+      payment = {
+        contractId: contract ? contract.id : null,
+        proId: pro.id,
+        proName: pro.name,
+        amount: contract ? contract.price : null,
+        contractStatus: contract ? contract.status : null,
+        pixKey: pro.pixKey || null,
+        pixKeyType: pro.pixKeyType || null,
+        pixHolder: pro.pixHolder || pro.name,
+        paid: !!(contract && contract.paidAt),
+        paidAt: contract && contract.paidAt ? contract.paidAt : null
+      };
+    }
+  }
+  res.json({ job: jobView(job, req.user), proposals, payment });
 });
 
 app.post('/api/jobs/:id/complete', auth(true), (req, res) => {
@@ -670,6 +783,24 @@ app.post('/api/proposals/:id/reject', auth(true), (req, res) => {
   notify(proposal.proId, 'Sua proposta para "' + job.title + '" foi recusada.');
   writeDB();
   res.json({ proposal });
+});
+
+app.post('/api/contracts/:id/paid', auth(true), (req, res) => {
+  const contract = db.contracts.find((c) => c.id === req.params.id);
+  if (!contract) return res.status(404).json({ error: 'Contrato não encontrado.' });
+  if (contract.clientId !== req.user.id) return res.status(403).json({ error: 'Apenas o cliente pode confirmar o pagamento.' });
+  if (contract.paidAt) return res.status(400).json({ error: 'Este pagamento já foi confirmado.' });
+  const proof = clean((req.body || {}).proof, 80);
+  contract.paidAt = nowISO();
+  contract.paymentMethod = 'pix';
+  contract.pixProof = proof || null;
+  db.ledger.push({
+    id: uid('l'), uid: contract.proId, type: 'recebimento', method: 'pix', proof: contract.pixProof,
+    amount: contract.price, desc: 'Serviço pago via PIX pelo cliente', date: nowISO()
+  });
+  notify(contract.proId, 'Pagamento via PIX confirmado pelo cliente' + (proof ? ' (ID ' + proof + ')' : '') + '. Confira seu extrato.');
+  writeDB();
+  res.json({ contract });
 });
 
 /* ---------------------------------- chat -------------------------------- */
