@@ -30,6 +30,8 @@ footer{background:var(--navy);color:#d5e3f0;padding:26px 16px;text-align:center}
 .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}.tabs button{border:1px solid var(--line);background:white;color:var(--navy);padding:8px 12px;border-radius:9px;font-weight:700}.tabs button.active{background:var(--navy);color:white}
 .password-wrap{display:flex;gap:6px;align-items:center}.password-wrap input{flex:1}.eye-btn{border:1px solid var(--line);background:#f7f9fc;border-radius:10px;padding:10px 12px;color:var(--navy);font-weight:800}.profile-photo{width:76px;height:76px;border-radius:50%;object-fit:cover;background:#e8eef5;display:grid;place-items:center;font-size:30px;color:var(--navy);border:2px solid #fff;box-shadow:0 2px 8px #10243e22}.pro-card{display:flex;gap:14px;align-items:flex-start}.pro-card .profile-photo{flex:0 0 76px}.gallery{display:flex;gap:8px;overflow:auto;margin-top:10px}.gallery img{width:110px;height:90px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}.chat-cta{background:#18a957;color:white;border:0;border-radius:999px;padding:10px 15px;font-weight:800}.wallet-number{font-size:25px;font-weight:850;color:var(--navy)}
 @media(max-width:760px){header{padding:14px}.hero{grid-template-columns:1fr;padding:22px}.grid,.grid.two{grid-template-columns:1fr}.formgrid{grid-template-columns:1fr}.full{grid-column:auto}.navinner button{padding:12px 9px;font-size:13px}main{margin-top:16px}.header-actions{width:100%}.header-actions .btn{flex:1}}
+body.auth-open>header,body.auth-open>nav,body.auth-open>main,body.auth-open>footer{visibility:hidden!important}
+body.auth-open{overflow:hidden}
 </style>
 </head>
 <body>
@@ -915,7 +917,16 @@ function openAuth(mode){
   title.textContent=isReg?"Criar conta no DOM ALPHA AJATO":"Entrar no DOM ALPHA AJATO";
   body.innerHTML=isReg?registerForm():loginForm();
   modal.classList.remove("hidden");
+  /* tela isolada: overlay fixo cobrindo a pagina inteira */
+  modal.style.position="fixed";
+  modal.style.inset="0";
+  modal.style.zIndex="9999";
   modal.style.display="grid";
+  modal.style.placeItems="center";
+  modal.style.background="#0b1b2ef2";
+  modal.style.padding="16px";
+  modal.style.overflow="auto";
+  document.body.classList.add("auth-open");
   document.body.style.overflow="hidden";
   setTimeout(function(){ var f=body.querySelector("input"); if(f){ try{f.focus();}catch(e){} } },60);
 }
@@ -923,7 +934,8 @@ function closeAuth(){
   var modal=document.getElementById("authModal");
   if(!modal) return;
   modal.classList.add("hidden");
-  modal.style.display="";
+  modal.style.cssText="";
+  document.body.classList.remove("auth-open");
   document.body.style.overflow="";
 }
 function togglePw(inputId,btn){
@@ -1053,7 +1065,7 @@ function jobCard(j){
   return '<div class="card"><div class="itemtop"><h3>'+esc(j.title)+'</h3>'+statusTag(j.status)+'</div>'+
     '<p class="muted">'+esc(j.category)+' · '+esc(j.city||"Cidade não informada")+(j.state?"/"+esc(j.state):"")+'</p>'+
     '<p>'+esc((j.description||"").slice(0,160))+'</p>'+
-    '<p><b>Orçamento:</b> '+money(j.budget)+' · <b>Propostas:</b> '+(j.proposalsCount||0)+'</p>'+
+    '<p><b>Orçamento:</b> a combinar · <b>Propostas:</b> '+(j.proposalsCount||0)+'</p>'+
     '<div class="actions">'+action+'<button class="btn outline small" onclick="openJobDetails(\''+j.id+'\')">Ver detalhes</button></div></div>';
 }
 
@@ -1213,8 +1225,8 @@ function openJobForm(){
    '<label>Título do serviço</label><input id="jobTitle" required minlength="5" placeholder="Ex: Reforma de banheiro completo">'+
    '<label>Categoria</label><select id="jobCategory">'+CATEGORIES.map(function(c){return '<option value="'+esc(c)+'">'+esc(c)+'</option>';}).join("")+'</select>'+
    '<label>Descrição</label><textarea id="jobDescription" required minlength="10" placeholder="Explique o que precisa ser feito, medidas, materiais..."></textarea>'+
-   '<div class="formgrid"><div><label>Orçamento (R$)</label><input id="jobBudget" type="number" min="0" step="50" placeholder="0,00"></div>'+
-   '<div><label>Prazo desejado</label><input id="jobDeadline" type="date"></div>'+
+   '<div class="notice" style="font-size:13px">O valor do orçamento não é definido aqui: ele é combinado depois, direto com o profissional, pelas propostas e pelo chat.</div>'+
+   '<div class="formgrid"><div><label>Prazo desejado</label><input id="jobDeadline" type="date"></div>'+
    '<div><label>Cidade</label><input id="jobCity" placeholder="Cidade da obra"></div>'+
    '<div><label>UF</label><select id="jobState">'+UFS.map(function(u){return '<option value="'+u+'">'+u+'</option>';}).join("")+'</select></div></div>'+
    '<div class="actions"><button class="btn gold" type="submit" style="flex:1">Publicar agora</button></div></form>');
@@ -1227,7 +1239,6 @@ async function submitJob(ev){
     title:document.getElementById("jobTitle").value.trim(),
     category:document.getElementById("jobCategory").value,
     description:document.getElementById("jobDescription").value.trim(),
-    budget:Number(document.getElementById("jobBudget").value)||0,
     deadline:document.getElementById("jobDeadline").value,
     city:document.getElementById("jobCity").value.trim(),
     state:document.getElementById("jobState").value
@@ -1249,7 +1260,7 @@ async function openJobDetails(id){
     var html='<div class="itemtop"><h3>'+esc(j.title)+'</h3>'+statusTag(j.status)+'</div>'+
       '<p class="muted">'+esc(j.category)+" · "+esc(j.city||"—")+(j.state?"/"+esc(j.state):"")+'</p>'+
       '<p>'+esc(j.description)+'</p>'+
-      '<p><b>Orçamento:</b> '+money(j.budget)+" · <b>Cliente:</b> "+esc(j.clientName)+(j.deadline?" · <b>Prazo:</b> "+fmtDate(j.deadline):"")+'</p>';
+      '<p><b>Orçamento:</b> a combinar · <b>Cliente:</b> "+esc(j.clientName)+(j.deadline?" · <b>Prazo:</b> "+fmtDate(j.deadline):"")+'</p>';
     if(j.isOwner){
       html+='<h3 style="margin-top:16px">Propostas recebidas ('+props.length+')</h3>';
       html+=props.length?props.map(function(p){
@@ -1440,7 +1451,7 @@ async function dashProposals(box){
       actions='<div class="actions"><button class="btn success small" onclick="acceptProposal(\''+p.id+'\')">Aceitar</button><button class="btn danger small" onclick="rejectProposal(\''+p.id+'\')">Recusar</button></div>';
     }
     return '<div class="item"><div class="itemtop"><div><b>'+esc(p.jobTitle)+'</b> '+(r.mode==="received"?"· "+esc(p.proName):"")+'<div class="muted">'+fmtDateTime(p.createdAt)+'</div></div><div><span class="tag gold">'+money(p.price)+'</span> '+statusTag(p.status)+'</div></div>'+
-      '<p>'+esc(p.message)+'</p><p class="muted">Orçamento do cliente: '+money(p.jobBudget)+(p.days?" · Prazo: "+p.days+" dia(s)":"")+'</p>'+actions+'</div>';
+      '<p>'+esc(p.message)+'</p><p class="muted">Orçamento: a combinar'+(p.days?" · Prazo: "+p.days+" dia(s)":"")+'</p>'+actions+'</div>';
   }).join("")+'</div>';
 }
 async function dashChats(box){
