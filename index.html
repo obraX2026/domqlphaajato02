@@ -153,6 +153,7 @@ var state = {
   me: null,
   page: "home",
   dashTab: "overview",
+  adminTab: "users",
   chatId: null,
   chatTimer: null,
   pros: [],
@@ -1688,7 +1689,7 @@ async function renderAdmin(){
   updateHeader();
   if(!isAdmin()){toast("Acesso restrito.");return;}
   var tabs=[["users","Usuários"],["reports","Denúncias"]];
-  document.getElementById("app").innerHTML='<section class="section"><div class="section-head"><div><div class="eyebrow">ADMINISTRAÇÃO</div><h2>Painel do DOM ALPHA AJATO</h2></div><div class="actions"><button class="btn outline" onclick="resetCycle()">Iniciar novo ciclo do ranking</button></div></div><div id="adminStats" class="grid"></div><div class="tabs" style="margin-top:16px">'+tabs.map(function(t){return '<button class="'+(adminTab===t[0]?"active":"")+'" onclick="setAdminTab(\''+t[0]+'\')">'+t[1]+'</button>';}).join("")+'</div><div id="adminBody"></div></section>';
+  document.getElementById("app").innerHTML='<section class="section"><div class="section-head"><div><div class="eyebrow">ADMINISTRAÇÃO</div><h2>Painel do DOM ALPHA AJATO</h2></div><div class="actions"><button class="btn outline" onclick="resetCycle()">Iniciar novo ciclo do ranking</button></div></div><div id="adminStats" class="grid"></div><div class="tabs" style="margin-top:16px">'+tabs.map(function(t){return '<button class="'+(state.adminTab===t[0]?"active":"")+'" onclick="setAdminTab(\''+t[0]+'\')">'+t[1]+'</button>';}).join("")+'</div><div id="adminBody"></div></section>';
   try{
     var o=await api("GET","/admin/overview");
     document.getElementById("adminStats").innerHTML='<div class="card"><h3>Usuários</h3><p class="stat">'+o.users+'</p><p class="muted">'+o.professionals+' profissionais · '+o.helpers+' ajudantes · '+o.clients+' clientes</p></div>'+
@@ -1698,12 +1699,12 @@ async function renderAdmin(){
   }catch(e){document.getElementById("adminStats").innerHTML='<div class="notice red">'+esc(e.message)+'</div>';}
   await renderAdminTab();
 }
-async function setAdminTab(tab){adminTab=tab;await renderAdmin();}
+async function setAdminTab(tab){state.adminTab=tab;await renderAdmin();}
 async function renderAdminTab(){
   var box=document.getElementById("adminBody");
   if(!box) return;
   try{
-    if(adminTab==="users"){
+    if(state.adminTab==="users"){
       var r=await api("GET","/admin/users");
       var list=r.users||[];
       var souDono=!!(me()&&me().role==="owner");
