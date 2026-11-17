@@ -106,16 +106,698 @@ function ratingText(u){
   return "⭐ "+Number(u.rating).toFixed(1)+" ("+u.ratingCount+")";
 }
 
+/* ================== MODO AUTÔNOMO — BANCO NO PRÓPRIO NAVEGADOR ============
+   Este arquivo funciona 100% sozinho: abrindo o index.html direto (file://)
+   ou publicando em qualquer hospedagem estática, sem servidor.
+   Quando existe servidor (/api), ele é usado automaticamente.
+   ========================================================================= */
+var LOCAL_KEY="daa_local_db_v1";
+var LOCAL_PLANS={
+  professional:{key:"professional",name:"Alpha Diamante",durationMeses:2,points:100,price:99.9},
+  helper:{key:"helper",name:"Alpha Ouro",durationMeses:2,points:80,price:59.9}
+};
+var localMode=(typeof location!=="undefined"&&location.protocol==="file:");
+var localNoticeShown=false;
+var ldb=null;
+
+function luid(p){return p+"_"+Date.now().toString(36)+Math.random().toString(36).slice(2,8);}
+function addMonthsISO(n){var d=new Date();d.setMonth(d.getMonth()+n);return d.toISOString();}
+function lhash(salt,pw){
+  var s=String(salt)+"|"+String(pw)+"|domalpha";
+  var a=5381,b=52711;
+  for(var i=0;i<s.length;i++){var c=s.charCodeAt(i);a=(((a<<5)+a)^c)>>>0;b=(((b<<5)-b)+c)>>>0;}
+  return ("0000000"+a.toString(16)).slice(-8)+("0000000"+b.toString(16)).slice(-8);
+}
+function lerr(msg,status){var e=new Error(msg);e.status=status||400;return e;}
+function localMakeUser(input){
+  var salt=luid("salt");
+  return {
+    id:luid("u"),
+    name:String(input.name||"").trim().slice(0,80),
+    email:String(input.email||"").trim().toLowerCase().slice(0,120),
+    salt:salt,
+    pwHash:lhash(salt,input.password),
+    role:input.role||"client",
+    city:String(input.city||"").trim().slice(0,80),
+    state:String(input.state||"").trim().toUpperCase().slice(0,2),
+    category:String(input.category||"").trim().slice(0,80),
+    bio:String(input.bio||"").trim().slice(0,1200),
+    phone:String(input.phone||"").trim().slice(0,30),
+    photo:null,skills:[],points:0,cyclePoints:0,jobsDone:0,ratingSum:0,ratingCount:0,
+    plan:null,status:"ativo",createdAt:new Date().toISOString()
+  };
+}
+function localSeed(){
+  var data={users:[],jobs:[],proposals:[],contracts:[],chats:[],messages:[],notifications:[],reports:[],reviews:[],ledger:[],sessions:{},rankingCycle:{start:new Date().toISOString(),end:addMonthsISO(2)}};
+  data.users.push(localMakeUser({name:"Administração Dom Alpha",email:"admin@domalphaajato.com",password:"admin123",role:"admin"}));
+  var pros=[
+    {name:"Carlos Ferreira",email:"carlos@domalphaajato.com",role:"professional",city:"São Paulo",state:"SP",category:"Alvenaria e estrutura",phone:"(11) 98888-1010",bio:"Mestre de obras com 15 anos de experiência em alvenaria, estrutura e reformas completas.",points:260,cyclePoints:180,jobsDone:12,ratingSum:57,ratingCount:12,plan:"professional"},
+    {name:"Ana Souza",email:"ana@domalphaajato.com",role:"professional",city:"Rio de Janeiro",state:"RJ",category:"Pintura e acabamento",phone:"(21) 97777-2020",bio:"Pintura residencial e predial, textura, grafiato e acabamento fino.",points:190,cyclePoints:120,jobsDone:9,ratingSum:43,ratingCount:9,plan:null},
+    {name:"Marcos Alves",email:"marcos@domalphaajato.com",role:"professional",city:"Campinas",state:"SP",category:"Elétrica",phone:"(19) 96666-3030",bio:"Eletricista predial, instalação de quadros, tomadas e iluminação.",points:95,cyclePoints:95,jobsDone:5,ratingSum:24,ratingCount:5,plan:null},
+    {name:"João Batista",email:"joao@domalphaajato.com",role:"helper",city:"Belo Horizonte",state:"MG",category:"Ajudante",phone:"(31) 95555-4040",bio:"Ajudante geral de obra, carregamento, limpeza e apoio em reformas.",points:120,cyclePoints:60,jobsDone:7,ratingSum:33,ratingCount:7,plan:"helper"}
+  ];
+  pros.forEach(function(p){
+    var u=localMakeUser({name:p.name,email:p.email,password:"demo123",role:p.role,city:p.city,state:p.state,category:p.category,phone:p.phone,bio:p.bio});
+    u.points=p.points||0;u.cyclePoints=p.cyclePoints||0;u.jobsDone=p.jobsDone||0;
+    u.ratingSum=p.ratingSum||0;u.ratingCount=p.ratingCount||0;
+    if(p.plan) u.plan={key:p.plan,name:LOCAL_PLANS[p.plan].name,since:new Date().toISOString(),until:addMonthsISO(2)};
+    data.users.push(u);
+  });
+  var client=localMakeUser({name:"Marina Lima",email:"marina@domalphaajato.com",password:"demo123",role:"client",city:"São Paulo",state:"SP",phone:"(11) 94444-5050"});
+  data.users.push(client);
+  data.jobs.push({
+    id:luid("j"),clientId:client.id,title:"Reforma de banheiro completo",category:"Reformas em geral",
+    city:"São Paulo",state:"SP",description:"Banheiro de 4m²: troca de revestimento, louças, box e pintura.",
+    budget:6500,deadline:new Date(Date.now()+30*864e5).toISOString().slice(0,10),status:"aberto",createdAt:new Date().toISOString()
+  });
+  data.jobs.push({
+    id:luid("j"),clientId:client.id,title:"Pintura de apartamento 70m²",category:"Pintura e acabamento",
+    city:"São Paulo",state:"SP",description:"Pintura interna completa, massa corrida e duas demãos de tinta acrílica.",
+    budget:3800,deadline:new Date(Date.now()+30*864e5).toISOString().slice(0,10),status:"aberto",createdAt:new Date().toISOString()
+  });
+  return data;
+}
+function loadLocal(){
+  try{
+    var raw=localStorage.getItem(LOCAL_KEY);
+    if(raw){
+      var d=JSON.parse(raw);
+      if(d&&Array.isArray(d.users)&&d.users.length){
+        ["jobs","proposals","contracts","chats","messages","notifications","reports","reviews","ledger"].forEach(function(k){if(!Array.isArray(d[k]))d[k]=[];});
+        if(!d.sessions||typeof d.sessions!=="object") d.sessions={};
+        if(!d.rankingCycle||!d.rankingCycle.start) d.rankingCycle={start:new Date().toISOString(),end:addMonthsISO(2)};
+        return d;
+      }
+    }
+  }catch(e){}
+  var s=localSeed();
+  try{localStorage.setItem(LOCAL_KEY,JSON.stringify(s));}catch(e){}
+  return s;
+}
+function ensureLocal(){if(!ldb) ldb=loadLocal();return ldb;}
+function saveLocal(){
+  try{localStorage.setItem(LOCAL_KEY,JSON.stringify(ldb));}
+  catch(e){toast("Armazenamento do navegador cheio. Use uma foto de perfil menor.");}
+}
+function localUserFromToken(){
+  ensureLocal();
+  var tk=state.token;
+  if(!tk||!ldb.sessions[tk]) return null;
+  for(var i=0;i<ldb.users.length;i++){if(ldb.users[i].id===ldb.sessions[tk]) return ldb.users[i];}
+  return null;
+}
+function localPub(u,viewer){
+  if(!u) return null;
+  var out={
+    id:u.id,name:u.name,role:u.role,city:u.city||"",state:u.state||"",category:u.category||"",
+    bio:u.bio||"",photo:u.photo||null,skills:u.skills||[],points:u.points||0,cyclePoints:u.cyclePoints||0,
+    jobsDone:u.jobsDone||0,ratingCount:u.ratingCount||0,
+    rating:u.ratingCount?Number((u.ratingSum/u.ratingCount).toFixed(2)):0,
+    plan:u.plan||null,status:u.status||"ativo",createdAt:u.createdAt,phone:u.phone||""
+  };
+  if(viewer&&(viewer.id===u.id||viewer.role==="admin"||viewer.role==="owner")) out.email=u.email;
+  return out;
+}
+function localJobView(job,viewer){
+  var client=null;
+  for(var i=0;i<ldb.users.length;i++){if(ldb.users[i].id===job.clientId){client=ldb.users[i];break;}}
+  var count=ldb.proposals.filter(function(p){return p.jobId===job.id;}).length;
+  var out={};
+  for(var key in job) out[key]=job[key];
+  out.clientName=client?client.name:"Cliente";
+  out.clientId=job.clientId;
+  out.proposalsCount=count;
+  out.isOwner=!!(viewer&&viewer.id===job.clientId);
+  return out;
+}
+function localChatSummary(chat,viewerId){
+  var otherId=chat.participants.filter(function(p){return p!==viewerId;})[0];
+  var other=null;
+  for(var i=0;i<ldb.users.length;i++){if(ldb.users[i].id===otherId){other=ldb.users[i];break;}}
+  var msgs=ldb.messages.filter(function(m){return m.chatId===chat.id;}).sort(function(a,b){return a.createdAt.localeCompare(b.createdAt);});
+  var last=msgs.length?msgs[msgs.length-1]:null;
+  var unread=ldb.messages.filter(function(m){
+    return m.chatId===chat.id&&m.fromId!==viewerId&&(m.readBy||[]).indexOf(viewerId)<0;
+  }).length;
+  return {
+    id:chat.id,
+    other:other?localPub(other):null,
+    lastMessage:last?{text:last.text,fromId:last.fromId,createdAt:last.createdAt}:null,
+    unread:unread,
+    lastAt:chat.lastAt||chat.createdAt
+  };
+}
+function localNotify(uid2,text){
+  if(!uid2) return;
+  ldb.notifications.push({id:luid("n"),uid:uid2,text:String(text||"").slice(0,300),read:false,date:new Date().toISOString()});
+}
+function localFindChat(aId,bId){
+  for(var i=0;i<ldb.chats.length;i++){
+    var c=ldb.chats[i];
+    if(c.participants.length===2&&c.participants.indexOf(aId)>=0&&c.participants.indexOf(bId)>=0) return c;
+  }
+  var chat={id:luid("c"),participants:[aId,bId],createdAt:new Date().toISOString(),lastAt:new Date().toISOString()};
+  ldb.chats.push(chat);
+  return chat;
+}
+function localAddPoints(u,n){u.points=(u.points||0)+n;u.cyclePoints=(u.cyclePoints||0)+n;}
+function localNotice(){
+  if(localNoticeShown) return;
+  localNoticeShown=true;
+  setTimeout(function(){toast("Modo autônomo: dados salvos neste navegador.");},1200);
+}
+
+async function localApi(method,url,body){
+  ensureLocal();
+  var m=String(method||"GET").toUpperCase();
+  var raw=String(url||"");
+  var qi=raw.indexOf("?");
+  var pathPart=qi>=0?raw.slice(0,qi):raw;
+  var query={};
+  if(qi>=0){
+    raw.slice(qi+1).split("&").forEach(function(pair){
+      if(!pair) return;
+      var eq=pair.indexOf("=");
+      var k=decodeURIComponent(eq<0?pair:pair.slice(0,eq));
+      var v=eq<0?"":decodeURIComponent(pair.slice(eq+1));
+      query[k]=v;
+    });
+  }
+  var seg=pathPart.split("/").filter(function(s){return !!s;});
+  var b=body||{};
+  var user=localUserFromToken();
+  var i;
+
+  function needAuth(){
+    if(!user) throw lerr("Faça login para continuar.",401);
+    if(user.status==="banido") throw lerr("Conta suspensa. Fale com a administração.",403);
+    return user;
+  }
+  function needAdmin(){
+    needAuth();
+    if(user.role!=="admin"&&user.role!=="owner") throw lerr("Acesso restrito à administração.",403);
+    return user;
+  }
+  function save(){saveLocal();}
+
+  if(seg[0]==="health") return {ok:true,app:"DOM ALPHA AJATO",users:ldb.users.length,jobs:ldb.jobs.length,mode:"local"};
+
+  /* ------------------------------ contas ------------------------------ */
+  if(seg[0]==="auth"&&seg[1]==="register"){
+    var name=String(b.name||"").trim().slice(0,80);
+    var email=String(b.email||"").trim().toLowerCase().slice(0,120);
+    var pw=String(b.password||"");
+    var role=(b.role==="professional"||b.role==="helper"||b.role==="client")?b.role:"client";
+    if(name.length<3) throw lerr("Informe seu nome completo.");
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) throw lerr("Informe um e-mail válido.");
+    if(pw.length<6) throw lerr("A senha deve ter pelo menos 6 caracteres.");
+    if(ldb.users.some(function(u){return u.email===email;})) throw lerr("Este e-mail já está cadastrado.",409);
+    var nu=localMakeUser({name:name,email:email,password:pw,role:role,city:b.city,state:b.state,category:b.category,bio:b.bio,phone:b.phone});
+    if(role!=="client"&&!nu.category) nu.category="Reformas em geral";
+    ldb.users.push(nu);
+    var tk=luid("s");
+    ldb.sessions[tk]=nu.id;
+    localNotify(nu.id,"Bem-vindo(a) ao DOM ALPHA AJATO! Complete seu perfil para aparecer nas buscas.");
+    save();
+    return {token:tk,user:localPub(nu,nu)};
+  }
+  if(seg[0]==="auth"&&seg[1]==="login"){
+    var lemail=String(b.email||"").trim().toLowerCase();
+    var lpw=String(b.password||"");
+    var found=null;
+    for(i=0;i<ldb.users.length;i++){if(ldb.users[i].email===lemail){found=ldb.users[i];break;}}
+    if(!found||found.pwHash!==lhash(found.salt,lpw)) throw lerr("E-mail ou senha incorretos.",401);
+    if(found.status==="banido") throw lerr("Conta suspensa. Fale com a administração.",403);
+    var tk2=luid("s");
+    ldb.sessions[tk2]=found.id;
+    save();
+    return {token:tk2,user:localPub(found,found)};
+  }
+  if(seg[0]==="auth"&&seg[1]==="logout"){
+    if(state.token&&ldb.sessions[state.token]){delete ldb.sessions[state.token];save();}
+    return {ok:true};
+  }
+  if(seg[0]==="auth"&&seg[1]==="me"){needAuth();return {user:localPub(user,user)};}
+  if(seg[0]==="me"&&m==="PATCH"){
+    needAuth();
+    if(b.name!==undefined){
+      var nn=String(b.name||"").trim().slice(0,80);
+      if(nn.length<3) throw lerr("Informe seu nome completo.");
+      user.name=nn;
+    }
+    if(b.phone!==undefined) user.phone=String(b.phone||"").trim().slice(0,30);
+    if(b.city!==undefined) user.city=String(b.city||"").trim().slice(0,80);
+    if(b.state!==undefined) user.state=String(b.state||"").trim().toUpperCase().slice(0,2);
+    if(b.category!==undefined&&user.role!=="client") user.category=String(b.category||"").trim().slice(0,80);
+    if(b.bio!==undefined) user.bio=String(b.bio||"").trim().slice(0,1200);
+    if(b.photo!==undefined){
+      if(b.photo===null) user.photo=null;
+      else if(typeof b.photo==="string"&&b.photo.indexOf("data:image/")===0&&b.photo.length<3000000) user.photo=b.photo;
+      else throw lerr("Foto inválida. Envie uma imagem JPG ou PNG pequena.");
+    }
+    save();
+    return {user:localPub(user,user)};
+  }
+
+  /* --------------------------- profissionais -------------------------- */
+  if(seg[0]==="professionals"){
+    var cat=query.category||"";
+    var q=String(query.q||"").toLowerCase();
+    var city=String(query.city||"").toLowerCase();
+    var list=ldb.users.filter(function(u){return (u.role==="professional"||u.role==="helper")&&u.status==="ativo";});
+    if(cat) list=list.filter(function(u){return u.category===cat||(u.role==="helper"&&cat==="Ajudante");});
+    if(city) list=list.filter(function(u){return String(u.city||"").toLowerCase().indexOf(city)>=0;});
+    if(q) list=list.filter(function(u){
+      return String(u.name||"").toLowerCase().indexOf(q)>=0||String(u.category||"").toLowerCase().indexOf(q)>=0||String(u.bio||"").toLowerCase().indexOf(q)>=0;
+    });
+    var nowMs=Date.now();
+    var ranked=list.map(function(u){return localPub(u);}).sort(function(x,y){
+      var xp=(x.plan&&new Date(x.plan.until).getTime()>nowMs)?1:0;
+      var yp=(y.plan&&new Date(y.plan.until).getTime()>nowMs)?1:0;
+      if(xp!==yp) return yp-xp;
+      return (y.cyclePoints||0)-(x.cyclePoints||0)||(y.rating||0)-(x.rating||0);
+    });
+    return {professionals:ranked,total:ranked.length,categories:CATEGORIES};
+  }
+  if(seg[0]==="users"&&seg[1]){
+    var vu=null;
+    for(i=0;i<ldb.users.length;i++){if(ldb.users[i].id===seg[1]){vu=ldb.users[i];break;}}
+    if(!vu) throw lerr("Perfil não encontrado.",404);
+    var revs=ldb.reviews.filter(function(r){return r.toId===vu.id;})
+      .sort(function(x,y){return y.createdAt.localeCompare(x.createdAt);})
+      .slice(0,10)
+      .map(function(r){
+        var from=null;
+        for(var k=0;k<ldb.users.length;k++){if(ldb.users[k].id===r.fromId){from=ldb.users[k];break;}}
+        var o={};
+        for(var key in r) o[key]=r[key];
+        o.fromName=from?from.name:"Cliente";
+        return o;
+      });
+    return {user:localPub(vu,user),reviews:revs};
+  }
+
+  /* ------------------------------ ranking ----------------------------- */
+  if(seg[0]==="ranking"){
+    var rankList=function(role){
+      return ldb.users.filter(function(u){return u.role===role&&u.status==="ativo";})
+        .map(function(u){return localPub(u);})
+        .sort(function(x,y){
+          return (y.cyclePoints||0)-(x.cyclePoints||0)||(y.points||0)-(x.points||0)||String(x.name).localeCompare(String(y.name));
+        });
+    };
+    return {cycle:ldb.rankingCycle,professional:rankList("professional"),helper:rankList("helper")};
+  }
+
+  /* ------------------------------- planos ----------------------------- */
+  if(seg[0]==="plans"&&seg[1]==="subscribe"){
+    needAuth();
+    var pkey=b.plan;
+    var plan=LOCAL_PLANS[pkey];
+    if(!plan) throw lerr("Plano inválido.");
+    if(user.role!==pkey) throw lerr("Este plano é exclusivo para "+(pkey==="helper"?"ajudantes.":"profissionais."));
+    user.plan={key:plan.key,name:plan.name,since:new Date().toISOString(),until:addMonthsISO(plan.durationMeses)};
+    localAddPoints(user,plan.points);
+    ldb.ledger.push({id:luid("l"),uid:user.id,type:"assinatura",amount:plan.price,desc:"Assinatura "+plan.name+" ("+plan.durationMeses+" meses)",date:new Date().toISOString()});
+    localNotify(user.id,"Plano "+plan.name+" ativado! Você ganhou "+plan.points+" pontos e destaque no PERFUME.");
+    save();
+    return {user:localPub(user,user),plan:user.plan};
+  }
+  if(seg[0]==="plans") return {plans:LOCAL_PLANS,cycle:ldb.rankingCycle};
+
+  /* --------------------------- oportunidades -------------------------- */
+  if(seg[0]==="jobs"&&!seg[1]){
+    if(m==="POST"){
+      needAuth();
+      if(["client","admin","owner"].indexOf(user.role)<0) throw lerr("Apenas contas de cliente podem publicar serviços.",403);
+      var title=String(b.title||"").trim().slice(0,100);
+      var desc=String(b.description||"").trim().slice(0,2000);
+      var jcat=String(b.category||"").trim().slice(0,80);
+      if(title.length<5) throw lerr("Descreva o título do serviço (mínimo 5 caracteres).");
+      if(desc.length<10) throw lerr("Descreva o serviço com pelo menos 10 caracteres.");
+      if(CATEGORIES.indexOf(jcat)<0) throw lerr("Escolha uma categoria válida.");
+      var njob={
+        id:luid("j"),clientId:user.id,title:title,description:desc,category:jcat,
+        city:String(b.city||"").trim().slice(0,80)||user.city||"",
+        state:(String(b.state||"").trim()||user.state||"").toUpperCase().slice(0,2),
+        budget:Number(b.budget)||0,deadline:String(b.deadline||"").slice(0,10),
+        status:"aberto",createdAt:new Date().toISOString()
+      };
+      ldb.jobs.push(njob);
+      save();
+      return {job:localJobView(njob,user)};
+    }
+    var status=query.status||"";
+    var jc=query.category||"";
+    var jq=String(query.q||"").toLowerCase();
+    var mine=query.mine==="1";
+    var jl=ldb.jobs.slice();
+    if(mine){
+      if(!user) throw lerr("Faça login para ver seus serviços.",401);
+      jl=jl.filter(function(j){return j.clientId===user.id;});
+    }
+    if(status) jl=jl.filter(function(j){return j.status===status;});
+    if(jc) jl=jl.filter(function(j){return j.category===jc;});
+    if(jq) jl=jl.filter(function(j){
+      return String(j.title||"").toLowerCase().indexOf(jq)>=0||String(j.description||"").toLowerCase().indexOf(jq)>=0;
+    });
+    jl.sort(function(x,y){return y.createdAt.localeCompare(x.createdAt);});
+    return {jobs:jl.map(function(j){return localJobView(j,user);})};
+  }
+  if(seg[0]==="jobs"&&seg[1]){
+    var job=null;
+    for(i=0;i<ldb.jobs.length;i++){if(ldb.jobs[i].id===seg[1]){job=ldb.jobs[i];break;}}
+    if(!job) throw lerr("Serviço não encontrado.",404);
+    if(seg[2]==="complete"){
+      needAuth();
+      if(job.clientId!==user.id&&user.role!=="admin"&&user.role!=="owner") throw lerr("Apenas o cliente que publicou pode concluir.",403);
+      if(job.status==="concluido") throw lerr("Este serviço já foi concluído.");
+      job.status="concluido";
+      job.completedAt=new Date().toISOString();
+      var ct=null;
+      for(i=0;i<ldb.contracts.length;i++){if(ldb.contracts[i].jobId===job.id&&ldb.contracts[i].status!=="cancelado"){ct=ldb.contracts[i];break;}}
+      if(ct){
+        ct.status="concluido";
+        var proC=null;
+        for(i=0;i<ldb.users.length;i++){if(ldb.users[i].id===ct.proId){proC=ldb.users[i];break;}}
+        if(proC){
+          proC.jobsDone=(proC.jobsDone||0)+1;
+          localAddPoints(proC,30);
+          localNotify(proC.id,"Serviço concluído: \""+job.title+"\". +30 pontos no ranking.");
+        }
+      }
+      save();
+      return {job:localJobView(job,user)};
+    }
+    if(seg[2]==="review"){
+      needAuth();
+      if(job.clientId!==user.id) throw lerr("Apenas o cliente pode avaliar.",403);
+      if(job.status!=="concluido") throw lerr("Conclua o serviço antes de avaliar.");
+      var stars=Number(b.stars);
+      if(!(stars>=1&&stars<=5)) throw lerr("Escolha de 1 a 5 estrelas.");
+      var ctr=null;
+      for(i=0;i<ldb.contracts.length;i++){if(ldb.contracts[i].jobId===job.id&&ldb.contracts[i].status!=="cancelado"){ctr=ldb.contracts[i];break;}}
+      if(!ctr) throw lerr("Não há profissional contratado para avaliar.");
+      if(ldb.reviews.some(function(r){return r.jobId===job.id&&r.fromId===user.id;})) throw lerr("Você já avaliou este serviço.",409);
+      var rv={id:luid("r"),jobId:job.id,fromId:user.id,toId:ctr.proId,stars:stars,comment:String(b.comment||"").trim().slice(0,600),createdAt:new Date().toISOString()};
+      ldb.reviews.push(rv);
+      var proR=null;
+      for(i=0;i<ldb.users.length;i++){if(ldb.users[i].id===ctr.proId){proR=ldb.users[i];break;}}
+      if(proR){
+        proR.ratingSum=(proR.ratingSum||0)+stars;
+        proR.ratingCount=(proR.ratingCount||0)+1;
+        localNotify(proR.id,"Você recebeu uma avaliação de "+stars+" estrela(s).");
+      }
+      save();
+      return {review:rv};
+    }
+    needAuth();
+    var owner=job.clientId===user.id||user.role==="admin"||user.role==="owner";
+    var props=ldb.proposals.filter(function(p){return p.jobId===job.id&&(owner||p.proId===user.id);})
+      .map(function(p){
+        var pu=null;
+        for(var k=0;k<ldb.users.length;k++){if(ldb.users[k].id===p.proId){pu=ldb.users[k];break;}}
+        var o={};
+        for(var key in p) o[key]=p[key];
+        o.proName=pu?pu.name:"Profissional";
+        o.proRating=pu?localPub(pu):null;
+        return o;
+      });
+    return {job:localJobView(job,user),proposals:props};
+  }
+
+  /* ------------------------------ propostas --------------------------- */
+  if(seg[0]==="proposals"&&!seg[1]){
+    needAuth();
+    if(m==="POST"){
+      if(user.role!=="professional"&&user.role!=="helper") throw lerr("Apenas profissionais e ajudantes enviam propostas.",403);
+      var tjob=null;
+      for(i=0;i<ldb.jobs.length;i++){if(ldb.jobs[i].id===b.jobId){tjob=ldb.jobs[i];break;}}
+      if(!tjob) throw lerr("Serviço não encontrado.",404);
+      if(tjob.clientId===user.id) throw lerr("Você não pode propor no seu próprio serviço.");
+      if(tjob.status!=="aberto") throw lerr("Este serviço não está mais aberto.");
+      if(ldb.proposals.some(function(p){return p.jobId===tjob.id&&p.proId===user.id;})) throw lerr("Você já enviou uma proposta para este serviço.",409);
+      var price=Number(b.price);
+      if(!(price>0)) throw lerr("Informe um valor válido para a proposta.");
+      var pmsg=String(b.message||"").trim().slice(0,1000);
+      if(pmsg.length<10) throw lerr("Escreva uma mensagem com pelo menos 10 caracteres.");
+      var np={id:luid("p"),jobId:tjob.id,proId:user.id,price:price,days:Number(b.days)||0,message:pmsg,status:"pendente",createdAt:new Date().toISOString()};
+      ldb.proposals.push(np);
+      localNotify(tjob.clientId,user.name+" enviou uma proposta para \""+tjob.title+"\".");
+      save();
+      return {proposal:np};
+    }
+    var sent=(user.role==="professional"||user.role==="helper");
+    var plist=ldb.proposals.filter(function(p){
+      if(sent) return p.proId===user.id;
+      return ldb.jobs.some(function(j){return j.id===p.jobId&&j.clientId===user.id;});
+    }).sort(function(x,y){return y.createdAt.localeCompare(x.createdAt);}).map(function(p){
+      var jj=null;
+      for(var k=0;k<ldb.jobs.length;k++){if(ldb.jobs[k].id===p.jobId){jj=ldb.jobs[k];break;}}
+      var pu=null;
+      for(var k2=0;k2<ldb.users.length;k2++){if(ldb.users[k2].id===p.proId){pu=ldb.users[k2];break;}}
+      var o={};
+      for(var key in p) o[key]=p[key];
+      o.jobTitle=jj?jj.title:"Serviço removido";
+      o.jobStatus=jj?jj.status:"cancelado";
+      o.jobBudget=jj?(jj.budget||0):0;
+      o.clientId=jj?jj.clientId:null;
+      o.proName=pu?pu.name:"Profissional";
+      o.pro=pu?localPub(pu):null;
+      return o;
+    });
+    return {proposals:plist,mode:sent?"sent":"received"};
+  }
+  if(seg[0]==="proposals"&&seg[1]){
+    needAuth();
+    var pp=null;
+    for(i=0;i<ldb.proposals.length;i++){if(ldb.proposals[i].id===seg[1]){pp=ldb.proposals[i];break;}}
+    if(!pp) throw lerr("Proposta não encontrada.",404);
+    var pj=null;
+    for(i=0;i<ldb.jobs.length;i++){if(ldb.jobs[i].id===pp.jobId){pj=ldb.jobs[i];break;}}
+    if(!pj) throw lerr("Serviço não encontrado.",404);
+    if(pj.clientId!==user.id) throw lerr("Apenas o cliente pode responder propostas.",403);
+    if(pp.status!=="pendente") throw lerr("Esta proposta já foi respondida.");
+    if(seg[2]==="accept"){
+      if(pj.status!=="aberto") throw lerr("Este serviço não está mais aberto.");
+      pp.status="aceita";
+      pp.answeredAt=new Date().toISOString();
+      ldb.proposals.forEach(function(other){
+        if(other.jobId===pj.id&&other.id!==pp.id&&other.status==="pendente"){
+          other.status="recusada";
+          other.answeredAt=new Date().toISOString();
+          localNotify(other.proId,"Sua proposta para \""+pj.title+"\" não foi escolhida desta vez.");
+        }
+      });
+      pj.status="em_andamento";
+      pj.hiredProId=pp.proId;
+      var contract={id:luid("ct"),jobId:pj.id,proposalId:pp.id,clientId:pj.clientId,proId:pp.proId,price:pp.price,status:"ativo",createdAt:new Date().toISOString()};
+      ldb.contracts.push(contract);
+      var apro=null;
+      for(i=0;i<ldb.users.length;i++){if(ldb.users[i].id===pp.proId){apro=ldb.users[i];break;}}
+      if(apro){
+        localAddPoints(apro,10);
+        localNotify(apro.id,"Proposta aceita para \""+pj.title+"\". +10 pontos. Combine os detalhes no chat.");
+      }
+      localNotify(pj.clientId,"Você contratou "+(apro?apro.name:"o profissional")+" para \""+pj.title+"\".");
+      var chat=localFindChat(pj.clientId,pp.proId);
+      chat.lastAt=new Date().toISOString();
+      save();
+      return {proposal:pp,contract:contract,chatId:chat.id};
+    }
+    if(seg[2]==="reject"){
+      pp.status="recusada";
+      pp.answeredAt=new Date().toISOString();
+      localNotify(pp.proId,"Sua proposta para \""+pj.title+"\" foi recusada.");
+      save();
+      return {proposal:pp};
+    }
+    throw lerr("Recurso não encontrado.",404);
+  }
+
+  /* -------------------------------- chat ------------------------------ */
+  if(seg[0]==="chats"&&!seg[1]){
+    needAuth();
+    if(m==="POST"){
+      var targetId=b.userId;
+      if(!targetId) throw lerr("Informe com quem você quer conversar.");
+      if(targetId===user.id) throw lerr("Você não pode conversar consigo mesmo.");
+      var target=null;
+      for(i=0;i<ldb.users.length;i++){if(ldb.users[i].id===targetId){target=ldb.users[i];break;}}
+      if(!target) throw lerr("Pessoa não encontrada.",404);
+      var ch=localFindChat(user.id,targetId);
+      save();
+      return {chat:localChatSummary(ch,user.id)};
+    }
+    var cl=ldb.chats.filter(function(c){return c.participants.indexOf(user.id)>=0;})
+      .map(function(c){return localChatSummary(c,user.id);})
+      .sort(function(x,y){return String(y.lastAt).localeCompare(String(x.lastAt));});
+    return {chats:cl};
+  }
+  if(seg[0]==="chats"&&seg[1]&&seg[2]==="messages"){
+    needAuth();
+    var chat2=null;
+    for(i=0;i<ldb.chats.length;i++){if(ldb.chats[i].id===seg[1]){chat2=ldb.chats[i];break;}}
+    if(!chat2) throw lerr("Conversa não encontrada.",404);
+    if(chat2.participants.indexOf(user.id)<0) throw lerr("Você não participa desta conversa.",403);
+    if(m==="POST"){
+      var text=String(b.text||"").trim().slice(0,2000);
+      if(!text) throw lerr("Escreva uma mensagem.");
+      var msg={id:luid("m"),chatId:chat2.id,fromId:user.id,text:text,createdAt:new Date().toISOString(),readBy:[user.id]};
+      ldb.messages.push(msg);
+      chat2.lastAt=msg.createdAt;
+      var otherId=chat2.participants.filter(function(p){return p!==user.id;})[0];
+      localNotify(otherId,"Nova mensagem de "+user.name+": "+text.slice(0,60));
+      save();
+      return {message:{id:msg.id,chatId:msg.chatId,fromId:msg.fromId,text:msg.text,createdAt:msg.createdAt,readBy:msg.readBy,mine:true,fromName:user.name}};
+    }
+    ldb.messages.forEach(function(mm){
+      if(mm.chatId===chat2.id&&mm.fromId!==user.id){
+        mm.readBy=Array.isArray(mm.readBy)?mm.readBy:[];
+        if(mm.readBy.indexOf(user.id)<0) mm.readBy.push(user.id);
+      }
+    });
+    save();
+    var msgs=ldb.messages.filter(function(mm){return mm.chatId===chat2.id;})
+      .sort(function(x,y){return x.createdAt.localeCompare(y.createdAt);})
+      .map(function(mm){
+        var fn="Usuário";
+        for(var k=0;k<ldb.users.length;k++){if(ldb.users[k].id===mm.fromId){fn=ldb.users[k].name;break;}}
+        return {id:mm.id,fromId:mm.fromId,text:mm.text,createdAt:mm.createdAt,fromName:fn,mine:mm.fromId===user.id};
+      });
+    return {chat:localChatSummary(chat2,user.id),messages:msgs};
+  }
+
+  /* ---------------------------- notificações -------------------------- */
+  if(seg[0]==="notifications"&&seg[1]==="read"){
+    needAuth();
+    ldb.notifications.forEach(function(n){if(n.uid===user.id) n.read=true;});
+    save();
+    return {ok:true};
+  }
+  if(seg[0]==="notifications"){
+    needAuth();
+    var nl=ldb.notifications.filter(function(n){return n.uid===user.id;})
+      .sort(function(x,y){return y.date.localeCompare(x.date);})
+      .slice(0,60);
+    return {notifications:nl,unread:nl.filter(function(n){return !n.read;}).length};
+  }
+
+  /* ------------------------------ denúncias --------------------------- */
+  if(seg[0]==="reports"&&m==="POST"){
+    needAuth();
+    var reason=String(b.reason||"").trim().slice(0,600);
+    if(!b.targetId||reason.length<5) throw lerr("Descreva o motivo da denúncia.");
+    var rep={id:luid("rp"),fromId:user.id,targetId:b.targetId,reason:reason,status:"aberto",createdAt:new Date().toISOString()};
+    ldb.reports.push(rep);
+    save();
+    return {report:rep};
+  }
+
+  /* ---------------------------- administração ------------------------- */
+  if(seg[0]==="admin"){
+    needAdmin();
+    if(seg[1]==="overview"){
+      var nowMs2=Date.now();
+      return {
+        users:ldb.users.length,
+        professionals:ldb.users.filter(function(u){return u.role==="professional";}).length,
+        helpers:ldb.users.filter(function(u){return u.role==="helper";}).length,
+        clients:ldb.users.filter(function(u){return u.role==="client";}).length,
+        banned:ldb.users.filter(function(u){return u.status==="banido";}).length,
+        jobs:ldb.jobs.length,
+        openJobs:ldb.jobs.filter(function(j){return j.status==="aberto";}).length,
+        proposals:ldb.proposals.length,
+        contracts:ldb.contracts.length,
+        activePlans:ldb.users.filter(function(u){return u.plan&&new Date(u.plan.until).getTime()>nowMs2;}).length,
+        revenue:ldb.ledger.reduce(function(s,l){return s+(Number(l.amount)||0);},0),
+        openReports:ldb.reports.filter(function(r){return r.status==="aberto";}).length,
+        cycle:ldb.rankingCycle
+      };
+    }
+    if(seg[1]==="users"&&!seg[2]){
+      return {users:ldb.users.slice().sort(function(x,y){return y.createdAt.localeCompare(x.createdAt);}).map(function(u){
+        var o=localPub(u,user);
+        o.email=u.email;
+        o.role=u.role;
+        return o;
+      })};
+    }
+    if(seg[1]==="users"&&seg[2]){
+      var au=null;
+      for(i=0;i<ldb.users.length;i++){if(ldb.users[i].id===seg[2]){au=ldb.users[i];break;}}
+      if(!au) throw lerr("Usuário não encontrado.",404);
+      if(b.status!==undefined){
+        if(b.status!=="ativo"&&b.status!=="banido") throw lerr("Status inválido.");
+        if(au.id===user.id) throw lerr("Você não pode alterar o seu próprio status.");
+        au.status=b.status;
+        if(b.status==="banido"){
+          Object.keys(ldb.sessions).forEach(function(tk3){if(ldb.sessions[tk3]===au.id) delete ldb.sessions[tk3];});
+        }
+      }
+      if(b.role!==undefined){
+        if(["client","professional","helper","admin"].indexOf(b.role)<0) throw lerr("Perfil inválido.");
+        if(au.id===user.id) throw lerr("Você não pode alterar o seu próprio perfil.");
+        au.role=b.role;
+      }
+      save();
+      var out=localPub(au,user);
+      out.email=au.email;
+      out.role=au.role;
+      return {user:out};
+    }
+    if(seg[1]==="reports"&&!seg[2]){
+      return {reports:ldb.reports.slice().sort(function(x,y){return y.createdAt.localeCompare(x.createdAt);}).map(function(r){
+        var o={};
+        for(var key in r) o[key]=r[key];
+        var from=null,tgt=null;
+        for(var k=0;k<ldb.users.length;k++){
+          if(ldb.users[k].id===r.fromId) from=ldb.users[k];
+          if(ldb.users[k].id===r.targetId) tgt=ldb.users[k];
+        }
+        o.fromName=from?from.name:"Usuário";
+        o.targetName=tgt?tgt.name:"Usuário";
+        return o;
+      })};
+    }
+    if(seg[1]==="reports"&&seg[2]){
+      var rr=null;
+      for(i=0;i<ldb.reports.length;i++){if(ldb.reports[i].id===seg[2]){rr=ldb.reports[i];break;}}
+      if(!rr) throw lerr("Denúncia não encontrada.",404);
+      rr.status=(b.status==="aberto")?"aberto":"resolvido";
+      save();
+      return {report:rr};
+    }
+    if(seg[1]==="cycle"){
+      ldb.rankingCycle={start:new Date().toISOString(),end:addMonthsISO(2)};
+      ldb.users.forEach(function(u){u.cyclePoints=0;});
+      save();
+      return {cycle:ldb.rankingCycle};
+    }
+  }
+
+  throw lerr("Recurso não encontrado.",404);
+}
+
 /* --------------------------------- API ----------------------------------- */
 function clearSession(){state.token="";state.me=null;localStorage.removeItem(TOKEN_KEY);}
 async function api(method,url,body){
+  if(localMode) return localApi(method,url,body);
   var headers={"Content-Type":"application/json"};
   if(state.token) headers.Authorization="Bearer "+state.token;
   var res;
   try{
     res=await fetch("/api"+url,{method:method,headers:headers,body:body===undefined?undefined:JSON.stringify(body)});
   }catch(e){
-    throw new Error("Sem conexão com o servidor. Tente novamente.");
+    localMode=true;
+    localNotice();
+    return localApi(method,url,body);
+  }
+  var ctype=(res.headers&&res.headers.get)?String(res.headers.get("content-type")||""):"";
+  if(ctype.indexOf("json")<0){
+    localMode=true;
+    localNotice();
+    return localApi(method,url,body);
   }
   var data=null;
   try{data=await res.json();}catch(e){}
