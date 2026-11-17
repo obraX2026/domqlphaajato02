@@ -258,10 +258,51 @@ test('administracao exige permissao', async () => {
   assert.strictEqual(denied.status, 403);
 
   const login = await call('POST', '/api/auth/login', {
-    email: 'admin@domalphaajato.com', password: 'admin123'
+    email: 'adm1@domalphaajato.com', password: 'adm123'
   });
-  assert.strictEqual(login.status, 200, 'admin do seed deve existir');
+  assert.strictEqual(login.status, 200, 'conta ADM do seed deve existir');
   const overview = await call('GET', '/api/admin/overview', undefined, login.json.token);
   assert.strictEqual(overview.status, 200);
   assert.ok(overview.json.users >= 3);
+});
+
+test('cadastro nao permite criar conta de ADM nem de dono', async () => {
+  const asAdmin = await call('POST', '/api/auth/register', {
+    name: 'Tentativa Admin', email: 'tentativa.admin@teste.com', password: 'senha123', role: 'admin'
+  });
+  assert.strictEqual(asAdmin.status, 403, JSON.stringify(asAdmin.json));
+
+  const asOwner = await call('POST', '/api/auth/register', {
+    name: 'Tentativa Dono', email: 'tentativa.dono@teste.com', password: 'senha123', role: 'owner'
+  });
+  assert.strictEqual(asOwner.status, 403, JSON.stringify(asOwner.json));
+});
+
+test('site vem com 1 dono e 2 ADM e so o dono promove administrador', async () => {
+  const owner = await call('POST', '/api/auth/login', { email: 'dono@domalphaajato.com', password: 'dono123' });
+  assert.strictEqual(owner.status, 200, 'conta do dono deve existir');
+  const adm1 = await call('POST', '/api/auth/login', { email: 'adm1@domalphaajato.com', password: 'adm123' });
+  assert.strictEqual(adm1.status, 200, 'primeira conta ADM deve existir');
+  const adm2 = await call('POST', '/api/auth/login', { email: 'adm2@domalphaajato.com', password: 'adm123' });
+  assert.strictEqual(adm2.status, 200, 'segunda conta ADM deve existir');
+
+  const blocked = await call('PATCH', '/api/admin/users/' + clientId, { role: 'admin' }, adm1.json.token);
+  assert.strictEqual(blocked.status, 403, 'ADM nao pode promover ninguem');
+
+  const promoted = await call('PATCH', '/api/admin/users/' + clientId, { role: 'admin' }, owner.json.token);
+  assert.strictEqual(promoted.status, 200, JSON.stringify(promoted.json));
+  assert.strictEqual(promoted.json.user.role, 'admin');
+
+  const demoted = await call('PATCH', '/api/admin/users/' + clientId, { role: 'client' }, owner.json.token);
+  assert.strictEqual(demoted.status, 200, JSON.stringify(demoted.json));
+  assert.strictEqual(demoted.json.user.role, 'client');
+});
+
+test('valor do plano vai para a chave PIX da conta do dono', async () => {
+  const owner = await call('POST', '/api/auth/login', { email: 'dono@domalphaajato.com', password: 'dono123' });
+  assert.strictEqual(owner.status, 200);
+  const plans = await call('GET', '/api/plans');
+  assert.strictEqual(plans.json.platformPix.source, 'owner');
+  assert.strictEqual(plans.json.platformPix.key, owner.json.user.pixKey);
+  assert.ok(plans.json.platformPix.key);
 });
