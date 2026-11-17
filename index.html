@@ -1248,6 +1248,7 @@ async function subscribePlan(key){
     '</div>'+
     '<p class="muted" style="margin:12px 0 6px">Pague com PIX na chave oficial da plataforma:</p>'+
     '<div class="pix-key"><div><div class="muted" style="font-size:12px">Chave PIX</div><b>'+esc(pp.key||"")+'</b><div class="muted" style="font-size:12px">Titular: '+esc(pp.holder||"DOM ALPHA AJATO")+'</div></div><button class="btn small" type="button" onclick="copyText(\''+esc(pp.key||"")+'\')">Copiar</button></div>'+
+    '<div class="notice" style="font-size:13px">Esta é a chave PIX da conta do dono: todo valor de plano pago vai direto para ela.</div>'+
     '<form onsubmit="confirmPlanPix(event,\''+key+'\')"><div id="planPixError"></div>'+
       '<label>ID / comprovante da transação PIX</label><input id="planPixProof" required placeholder="Ex: E1234567890...">'+
       '<div class="notice" style="font-size:13px">Depois de pagar, informe o identificador do comprovante para liberar o plano.</div>'+
@@ -1705,9 +1706,16 @@ async function renderAdminTab(){
     if(adminTab==="users"){
       var r=await api("GET","/admin/users");
       var list=r.users||[];
-      box.innerHTML='<div class="tablewrap"><table><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Plano</th><th>Pontos</th><th>Status</th><th>Ações</th></tr>'+list.map(function(u){
+      var souDono=!!(me()&&me().role==="owner");
+      box.innerHTML=(souDono?'<div class="notice">Você é a conta do dono: só você pode tornar alguém administrador ou remover o acesso de ADM.</div>':'')+'<div class="tablewrap"><table><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Plano</th><th>Pontos</th><th>Status</th><th>Ações</th></tr>'+list.map(function(u){
+        var roleBtn="";
+        if(souDono&&u.role!=="owner"){
+          roleBtn=u.role==="admin"
+            ? '<button class="btn small outline" onclick="setUserRole(\''+u.id+'\',\'client\')">Remover ADM</button>'
+            : '<button class="btn small dark" onclick="setUserRole(\''+u.id+'\',\'admin\')">Tornar ADM</button>';
+        }
         return '<tr><td>'+esc(u.name)+'</td><td>'+esc(u.email||"")+'</td><td>'+esc(roleLabel(u.role))+'</td><td>'+(planActive(u)?esc(u.plan.name):"—")+'</td><td>'+(u.cyclePoints||0)+'</td><td>'+statusTag(u.status)+'</td>'+
-        '<td><button class="btn small '+(u.status==="banido"?"success":"danger")+'" onclick="toggleBan(\''+u.id+'\',\''+(u.status==="banido"?"ativo":"banido")+'\')">'+(u.status==="banido"?"Reativar":"Banir")+'</button></td></tr>';
+        '<td><div class="actions" style="margin:0">'+roleBtn+'<button class="btn small '+(u.status==="banido"?"success":"danger")+'" onclick="toggleBan(\''+u.id+'\',\''+(u.status==="banido"?"ativo":"banido")+'\')">'+(u.status==="banido"?"Reativar":"Banir")+'</button></div></td></tr>';
       }).join("")+'</table></div>';
     }else{
       var r2=await api("GET","/admin/reports");
@@ -1721,6 +1729,9 @@ async function renderAdminTab(){
 }
 async function toggleBan(id,status){
   try{await api("PATCH","/admin/users/"+id,{status:status});toast("Usuário atualizado.");await renderAdmin();}catch(e){toast(e.message);}
+}
+async function setUserRole(id,role){
+  try{await api("PATCH","/admin/users/"+id,{role:role});toast(role==="admin"?"Novo administrador definido.":"Acesso de administrador removido.");await renderAdmin();}catch(e){toast(e.message);}
 }
 async function resolveReport(id){
   try{await api("PATCH","/admin/reports/"+id,{status:"resolvido"});toast("Denúncia resolvida.");await renderAdmin();}catch(e){toast(e.message);}
