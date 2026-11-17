@@ -619,7 +619,254 @@ async function startChat(userId){
     await go("dashboard");
   }catch(e){toast(e.message);}
 }
-/*__P3__*/
+/* --------------------------------- painel -------------------------------- */
+async function renderDashboard(){
+  updateHeader();
+  var u=me();
+  if(!u){openAuth("login");return;}
+  var tabs=[["overview","Visão geral"],["proposals","Propostas"],["chats","Conversas"],["jobs",(u.role==="client"?"Meus serviços":"Oportunidades")],["notifications","Notificações"],["profile","Meu perfil"]];
+  var isClient=u.role==="client"||u.role==="admin"||u.role==="owner";
+  document.getElementById("app").innerHTML=
+   '<section class="section"><div class="section-head"><div><div class="eyebrow">MINHA CONTA</div><h2>Olá, '+esc(String(u.name).split(" ")[0])+'</h2>'+
+   '<p class="muted">'+esc(roleLabel(u.role))+(planActive(u)?" · Plano "+esc(u.plan.name)+" ativo":"")+'</p></div>'+
+   '<div class="actions">'+(isClient?'<button class="btn gold" onclick="openJobForm()">Publicar serviço</button>':'')+'<button class="btn outline" onclick="go(\'plans\')">Planos</button></div></div>'+
+   '<div class="tabs">'+tabs.map(function(t){return '<button class="'+(state.dashTab===t[0]?"active":"")+'" onclick="setDashTab(\''+t[0]+'\')">'+t[1]+'</button>';}).join("")+'</div>'+
+   '<div id="dashBody"><div class="empty">Carregando...</div></div></section>';
+  await renderDashTab();
+}
+async function setDashTab(tab){
+  stopChatPolling();
+  state.dashTab=tab;
+  if(tab!=="chats") state.chatId=null;
+  await renderDashboard();
+}
+async function renderDashTab(){
+  var box=document.getElementById("dashBody");
+  if(!box) return;
+  try{
+    if(state.dashTab==="overview") await dashOverview(box);
+    else if(state.dashTab==="proposals") await dashProposals(box);
+    else if(state.dashTab==="chats") await dashChats(box);
+    else if(state.dashTab==="jobs") await dashJobs(box);
+    else if(state.dashTab==="notifications") await dashNotifications(box);
+    else await dashProfile(box);
+  }catch(e){box.innerHTML='<div class="notice red">'+esc(e.message)+'</div>';}
+}
+async function dashOverview(box){
+  var u=me();
+  var props=await api("GET","/proposals").catch(function(){return {proposals:[],mode:"sent"};});
+  var chats=await api("GET","/chats").catch(function(){return {chats:[]};});
+  var notes=await api("GET","/notifications").catch(function(){return {notifications:[],unread:0};});
+  var unreadChats=(chats.chats||[]).reduce(function(s,c){return s+(c.unread||0);},0);
+  var pending=(props.proposals||[]).filter(function(p){return p.status==="pendente";}).length;
+  var stat=function(label,value,extra){return '<div class="card"><h3>'+label+'</h3><p class="stat">'+value+'</p><p class="muted">'+(extra||"")+'</p></div>';};
+  box.innerHTML='<div class="grid">'+
+    stat("Propostas",(props.proposals||[]).length,(props.mode==="sent"?"enviadas":"recebidas")+(pending?" · "+pending+" pendente(s)":""))+
+    stat("Conversas",(chats.chats||[]).length,unreadChats?unreadChats+" mensagem(ns) não lida(s)":"tudo em dia")+
+    stat("Pontos no PERFUME",(u.cyclePoints||0),planActive(u)?"Plano "+esc(u.plan.name):"Sem plano ativo")+
+    stat("Obras concluídas",(u.jobsDone||0),ratingText(u))+
+    stat("Notificações",notes.unread||0,"não lidas")+
+    stat("Plano",planActive(u)?esc(u.plan.name):"Grátis",planActive(u)?"válido até "+fmtDate(u.plan.until):"assine para aparecer no topo")+
+   '</div><div class="actions" style="margin-top:16px"><button class="btn outline" onclick="setDashTab(\'proposals\')">Ver propostas</button><button class="btn outline" onclick="setDashTab(\'chats\')">Abrir conversas</button><button class="btn gold" onclick="go(\'perfume\')">Ver ranking</button></div>';
+}
+async function dashProposals(box){
+  var r=await api("GET","/proposals");
+  var list=r.proposals||[];
+  if(!list.length){
+    box.innerHTML='<div class="empty">'+(r.mode==="sent"?"Você ainda não enviou propostas. Veja as oportunidades abertas.":"Você ainda não recebeu propostas. Publique um serviço para receber orçamentos.")+'</div>';
+    return;
+  }
+  box.innerHTML='<div class="card">'+list.map(function(p){
+    var actions="";
+    if(r.mode==="received"&&p.status==="pendente"){
+      actions='<div class="actions"><button class="btn success small" onclick="acceptProposal(\''+p.id+'\')">Aceitar</button><button class="btn danger small" onclick="rejectProposal(\''+p.id+'\')">Recusar</button></div>';
+    }
+    return '<div class="item"><div class="itemtop"><div><b>'+esc(p.jobTitle)+'</b> '+(r.mode==="received"?"· "+esc(p.proName):"")+'<div class="muted">'+fmtDateTime(p.createdAt)+'</div></div><div><span class="tag gold">'+money(p.price)+'</span> '+statusTag(p.status)+'</div></div>'+
+      '<p>'+esc(p.message)+'</p><p class="muted">Orçamento do cliente: '+money(p.jobBudget)+(p.days?" · Prazo: "+p.days+" dia(s)":"")+'</p>'+actions+'</div>';
+  }).join("")+'</div>';
+}
+async function dashChats(box){
+  if(state.chatId){await renderChatWindow(box,state.chatId);return;}
+  var r=await api("GET","/chats");
+  var list=r.chats||[];
+  if(!list.length){box.innerHTML='<div class="empty">Nenhuma conversa ainda. Abra o perfil de um profissional e clique em Conversar.</div>';return;}
+  box.innerHTML='<div class="card">'+list.map(function(c){
+    return '<div class="item"><div class="itemtop"><div><b>'+esc(c.other?c.other.name:"Usuário")+'</b> '+(c.other?planTag(c.other):"")+'<div class="muted">'+(c.lastMessage?esc(c.lastMessage.text.slice(0,70)):"Sem mensagens")+'</div></div>'+
+      '<div style="text-align:right">'+(c.unread?'<span class="tag red">'+c.unread+' nova(s)</span>':'<span class="tag green">lida</span>')+'<div class="muted" style="font-size:12px">'+fmtDateTime(c.lastAt)+'</div></div></div>'+
+      '<div class="actions"><button class="btn small" onclick="openChat(\''+c.id+'\')">Abrir conversa</button>'+(c.other?'<button class="btn outline small" onclick="openProfile(\''+c.other.id+'\')">Ver perfil</button>':'')+'</div></div>';
+  }).join("")+'</div>';
+}
+async function openChat(chatId){
+  stopChatPolling();
+  state.chatId=chatId;
+  state.dashTab="chats";
+  await renderDashboard();
+}
+async function renderChatWindow(box,chatId){
+  box.innerHTML='<div class="card"><div class="itemtop"><button class="btn outline small" onclick="closeChatWindow()">← Conversas</button><b id="chatTitle">Conversa</b></div>'+
+    '<div id="chatMessages" style="max-height:340px;overflow:auto;margin:12px 0"></div>'+
+    '<form onsubmit="sendMessage(event,\''+chatId+'\')"><div class="formgrid"><div class="full"><input id="chatInput" placeholder="Escreva uma mensagem..." autocomplete="off" maxlength="2000"></div></div>'+
+    '<div class="actions"><button class="btn gold" type="submit">Enviar</button></div></form></div>';
+  await loadMessages(chatId);
+  state.chatTimer=setInterval(function(){loadMessages(chatId);},5000);
+}
+async function closeChatWindow(){
+  stopChatPolling();
+  state.chatId=null;
+  await renderDashboard();
+}
+async function loadMessages(chatId){
+  var wrap=document.getElementById("chatMessages");
+  if(!wrap) return;
+  try{
+    var r=await api("GET","/chats/"+chatId+"/messages");
+    var t=document.getElementById("chatTitle");
+    if(t&&r.chat&&r.chat.other) t.textContent=r.chat.other.name;
+    var msgs=r.messages||[];
+    var nearBottom=wrap.scrollHeight-wrap.scrollTop-wrap.clientHeight<80;
+    wrap.innerHTML=msgs.length?msgs.map(function(m){
+      return '<div style="display:flex;justify-content:'+(m.mine?"flex-end":"flex-start")+';margin:6px 0"><div style="max-width:78%;padding:9px 12px;border-radius:12px;background:'+(m.mine?"var(--navy)":"#eef3f9")+';color:'+(m.mine?"#fff":"var(--text)")+'">'+
+        '<div style="font-size:11px;opacity:.75;font-weight:700">'+esc(m.fromName)+' · '+fmtDateTime(m.createdAt)+'</div>'+esc(m.text)+'</div></div>';
+    }).join(""):'<div class="empty">Nenhuma mensagem ainda. Diga olá!</div>';
+    if(nearBottom) wrap.scrollTop=wrap.scrollHeight;
+  }catch(e){wrap.innerHTML='<div class="notice red">'+esc(e.message)+'</div>';}
+}
+async function sendMessage(ev,chatId){
+  ev.preventDefault();
+  var input=document.getElementById("chatInput");
+  var text=(input.value||"").trim();
+  if(!text) return;
+  input.value="";
+  try{
+    await api("POST","/chats/"+chatId+"/messages",{text:text});
+    await loadMessages(chatId);
+  }catch(e){toast(e.message);}
+}
+async function dashJobs(box){
+  var u=me();
+  if(u.role==="client"||u.role==="admin"||u.role==="owner"){
+    var r=await api("GET","/jobs?mine=1");
+    var list=r.jobs||[];
+    box.innerHTML=list.length?'<div class="grid two">'+list.map(jobCard).join("")+'</div>':'<div class="empty">Você ainda não publicou serviços.<br><br><button class="btn gold" onclick="openJobForm()">Publicar meu primeiro serviço</button></div>';
+  }else{
+    var r2=await api("GET","/jobs?status=aberto");
+    var l2=r2.jobs||[];
+    box.innerHTML=l2.length?'<div class="grid two">'+l2.map(jobCard).join("")+'</div>':'<div class="empty">Nenhuma oportunidade aberta agora.</div>';
+  }
+}
+async function dashNotifications(box){
+  var r=await api("GET","/notifications");
+  var list=r.notifications||[];
+  box.innerHTML='<div class="card"><div class="itemtop"><h3>Notificações</h3>'+(r.unread?'<button class="btn outline small" onclick="markAllRead()">Marcar todas como lidas</button>':'')+'</div>'+
+    (list.length?list.map(function(n){return '<div class="item"><div class="itemtop"><span>'+esc(n.text)+'</span>'+(n.read?'':'<span class="tag red">nova</span>')+'</div><div class="muted" style="font-size:12px">'+fmtDateTime(n.date)+'</div></div>';}).join(""):'<div class="empty">Nenhuma notificação.</div>')+'</div>';
+}
+async function markAllRead(){
+  try{await api("POST","/notifications/read",{});await renderDashTab();toast("Notificações lidas.");}catch(e){toast(e.message);}
+}
+async function dashProfile(box){
+  var u=me();
+  var isWorker=u.role!=="client";
+  box.innerHTML='<div class="card"><div class="pro-card">'+
+    (u.photo?'<div class="profile-photo"><img id="profilePreview" src="'+u.photo+'" style="width:100%;height:100%;border-radius:50%;object-fit:cover"></div>':'<div class="profile-photo" id="profilePreview">'+esc(initials(u.name))+'</div>')+
+    '<div style="flex:1;min-width:0"><h3>'+esc(u.name)+' '+planTag(u)+'</h3><p class="muted">'+esc(roleLabel(u.role))+' · '+esc(u.city||"Cidade não informada")+(u.state?"/"+esc(u.state):"")+'</p><p>'+ratingText(u)+' · '+(u.jobsDone||0)+' obra(s) · '+(u.cyclePoints||0)+' pts</p>'+
+    '<p class="muted">'+esc(u.email||"")+'</p></div></div>'+
+    '<form onsubmit="saveProfile(event)" style="margin-top:14px"><div id="profileError"></div><div class="formgrid">'+
+      '<div><label>Nome completo</label><input id="pfName" value="'+esc(u.name)+'" minlength="3" required></div>'+
+      '<div><label>Telefone / WhatsApp</label><input id="pfPhone" value="'+esc(u.phone||"")+'"></div>'+
+      '<div><label>Cidade</label><input id="pfCity" value="'+esc(u.city||"")+'"></div>'+
+      '<div><label>UF</label><select id="pfState">'+UFS.map(function(s){return '<option value="'+s+'"'+(u.state===s?" selected":"")+'>'+s+'</option>';}).join("")+'</select></div>'+
+      (isWorker?'<div class="full"><label>Categoria de trabalho</label><select id="pfCategory">'+CATEGORIES.map(function(c){return '<option value="'+esc(c)+'"'+(u.category===c?" selected":"")+'>'+esc(c)+'</option>';}).join("")+'</select></div>':'')+
+      '<div class="full"><label>Sobre você</label><textarea id="pfBio" placeholder="Sua experiência e especialidades">'+esc(u.bio||"")+'</textarea></div>'+
+      '<div class="full"><label>Foto de perfil</label><input id="pfPhoto" type="file" accept="image/*" onchange="pickPhoto(this)"></div>'+
+    '</div><div class="actions"><button class="btn gold" type="submit">Salvar alterações</button><button class="btn outline" type="button" onclick="logout()">Sair da conta</button></div></form></div>';
+}
+var pendingPhoto=null;
+function pickPhoto(input){
+  var file=input.files&&input.files[0];
+  if(!file) return;
+  if(file.size>1200000){toast("Escolha uma imagem menor que 1,2 MB.");input.value="";return;}
+  var reader=new FileReader();
+  reader.onload=function(){
+    pendingPhoto=String(reader.result);
+    var prev=document.getElementById("profilePreview");
+    if(prev) prev.innerHTML='<img src="'+pendingPhoto+'" style="width:100%;height:100%;border-radius:50%;object-fit:cover">';
+  };
+  reader.readAsDataURL(file);
+}
+async function saveProfile(ev){
+  ev.preventDefault();
+  var box=document.getElementById("profileError");
+  box.innerHTML="";
+  var u=me();
+  var body={name:document.getElementById("pfName").value.trim(),phone:document.getElementById("pfPhone").value.trim(),city:document.getElementById("pfCity").value.trim(),state:document.getElementById("pfState").value,bio:document.getElementById("pfBio").value.trim()};
+  var cat=document.getElementById("pfCategory");
+  if(cat) body.category=cat.value;
+  if(pendingPhoto) body.photo=pendingPhoto;
+  try{
+    var r=await api("PATCH","/me",body);
+    state.me=r.user;
+    pendingPhoto=null;
+    updateHeader();
+    toast("Perfil atualizado!");
+    await renderDashboard();
+  }catch(e){box.innerHTML='<div class="notice red">'+esc(e.message)+'</div>';}
+}
+
+/* ----------------------------- administracao ----------------------------- */
+async function renderAdmin(){
+  updateHeader();
+  if(!isAdmin()){toast("Acesso restrito.");return;}
+  var tabs=[["users","Usuários"],["reports","Denúncias"]];
+  document.getElementById("app").innerHTML='<section class="section"><div class="section-head"><div><div class="eyebrow">ADMINISTRAÇÃO</div><h2>Painel do DOM ALPHA AJATO</h2></div><div class="actions"><button class="btn outline" onclick="resetCycle()">Iniciar novo ciclo do ranking</button></div></div><div id="adminStats" class="grid"></div><div class="tabs" style="margin-top:16px">'+tabs.map(function(t){return '<button class="'+(adminTab===t[0]?"active":"")+'" onclick="setAdminTab(\''+t[0]+'\')">'+t[1]+'</button>';}).join("")+'</div><div id="adminBody"></div></section>';
+  try{
+    var o=await api("GET","/admin/overview");
+    document.getElementById("adminStats").innerHTML='<div class="card"><h3>Usuários</h3><p class="stat">'+o.users+'</p><p class="muted">'+o.professionals+' profissionais · '+o.helpers+' ajudantes · '+o.clients+' clientes</p></div>'+
+      '<div class="card"><h3>Serviços</h3><p class="stat">'+o.jobs+'</p><p class="muted">'+o.openJobs+' abertos · '+o.proposals+' propostas</p></div>'+
+      '<div class="card"><h3>Planos ativos</h3><p class="stat">'+o.activePlans+'</p><p class="muted">Receita: '+money(o.revenue)+'</p></div>'+
+      '<div class="card"><h3>Denúncias abertas</h3><p class="stat">'+o.openReports+'</p><p class="muted">Banidos: '+o.banned+'</p></div>';
+  }catch(e){document.getElementById("adminStats").innerHTML='<div class="notice red">'+esc(e.message)+'</div>';}
+  await renderAdminTab();
+}
+async function setAdminTab(tab){adminTab=tab;await renderAdmin();}
+async function renderAdminTab(){
+  var box=document.getElementById("adminBody");
+  if(!box) return;
+  try{
+    if(adminTab==="users"){
+      var r=await api("GET","/admin/users");
+      var list=r.users||[];
+      box.innerHTML='<div class="tablewrap"><table><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Plano</th><th>Pontos</th><th>Status</th><th>Ações</th></tr>'+list.map(function(u){
+        return '<tr><td>'+esc(u.name)+'</td><td>'+esc(u.email||"")+'</td><td>'+esc(roleLabel(u.role))+'</td><td>'+(planActive(u)?esc(u.plan.name):"—")+'</td><td>'+(u.cyclePoints||0)+'</td><td>'+statusTag(u.status)+'</td>'+
+        '<td><button class="btn small '+(u.status==="banido"?"success":"danger")+'" onclick="toggleBan(\''+u.id+'\',\''+(u.status==="banido"?"ativo":"banido")+'\')">'+(u.status==="banido"?"Reativar":"Banir")+'</button></td></tr>';
+      }).join("")+'</table></div>';
+    }else{
+      var r2=await api("GET","/admin/reports");
+      var reps=r2.reports||[];
+      box.innerHTML=reps.length?'<div class="card">'+reps.map(function(rp){
+        return '<div class="item"><div class="itemtop"><div><b>'+esc(rp.fromName)+'</b> denunciou <b>'+esc(rp.targetName)+'</b><div class="muted">'+fmtDateTime(rp.createdAt)+'</div></div>'+statusTag(rp.status)+'</div><p>'+esc(rp.reason)+'</p>'+
+        (rp.status==="aberto"?'<div class="actions"><button class="btn success small" onclick="resolveReport(\''+rp.id+'\')">Marcar como resolvida</button></div>':'')+'</div>';
+      }).join("")+'</div>':'<div class="empty">Nenhuma denúncia registrada.</div>';
+    }
+  }catch(e){box.innerHTML='<div class="notice red">'+esc(e.message)+'</div>';}
+}
+async function toggleBan(id,status){
+  try{await api("PATCH","/admin/users/"+id,{status:status});toast("Usuário atualizado.");await renderAdmin();}catch(e){toast(e.message);}
+}
+async function resolveReport(id){
+  try{await api("PATCH","/admin/reports/"+id,{status:"resolvido"});toast("Denúncia resolvida.");await renderAdmin();}catch(e){toast(e.message);}
+}
+async function resetCycle(){
+  try{await api("POST","/admin/cycle",{});toast("Novo ciclo do PERFUME iniciado.");await renderAdmin();}catch(e){toast(e.message);}
+}
+
+/* --------------------------------- inicio -------------------------------- */
+(async function boot(){
+  if(state.token){
+    try{var r=await api("GET","/auth/me");state.me=r.user;}catch(e){clearSession();}
+  }
+  updateHeader();
+  try{await go("home");}catch(e){}
+})();
 </script>
 </body>
 </html>
