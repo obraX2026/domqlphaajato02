@@ -36,34 +36,93 @@ footer{background:var(--navy);color:#d5e3f0;padding:26px 16px;text-align:center}
 <header>
   <div class="brand"><div class="logo">D</div><div><h1>DOM ALPHA AJATO</h1><small>Plataforma de serviços, obras e reformas</small></div></div>
   <div class="header-actions" id="headerActions">
-    <button class="btn outline" onclick="openAuth('login')">Entrar</button>
-    <button class="btn gold" onclick="openAuth('register')">Criar conta</button>
+    <button type="button" class="btn outline" data-act="login">Entrar</button>
+    <button type="button" class="btn gold" data-act="register">Criar conta</button>
   </div>
 </header>
 <nav><div class="navinner" id="nav">
-  <button class="active" data-page="home" onclick="go('home')">Início</button>
-  <button data-page="perfume" onclick="go('perfume')">PERFUME</button>
-  <button data-page="services" onclick="go('services')">Serviços</button>
-  <button data-page="plans" onclick="go('plans')">Planos</button>
-  <button data-page="opportunities" onclick="go('opportunities')">Oportunidades</button>
-  <button data-page="dashboard" onclick="go('dashboard')">Minha conta</button>
-  <button data-page="admin" id="adminNav" class="hidden" onclick="go('admin')">Administração</button>
+  <button type="button" class="active" data-page="home">Início</button>
+  <button type="button" data-page="perfume">PERFUME</button>
+  <button type="button" data-page="services">Serviços</button>
+  <button type="button" data-page="plans">Planos</button>
+  <button type="button" data-page="opportunities">Oportunidades</button>
+  <button type="button" data-page="dashboard">Minha conta</button>
+  <button type="button" data-page="admin" id="adminNav" class="hidden">Administração</button>
 </div></nav>
 <main id="app"></main>
+<noscript><div style="max-width:1180px;margin:20px auto;padding:14px 16px;background:#fff0ef;border-left:4px solid #c0392b;border-radius:12px;color:#203044">Ative o JavaScript do navegador para usar o DOM ALPHA AJATO.</div></noscript>
 <footer><strong>DOM ALPHA AJATO</strong><br>Conectando clientes, profissionais e ajudantes.<br><small>Ambiente de testes — dados locais.</small></footer>
 
 <div class="modalback hidden" id="authModal"><div class="modal">
-  <div class="modalhead"><h2 id="authTitle">Entrar no DOM ALPHA AJATO</h2><button class="close" onclick="closeAuth()">×</button></div>
+  <div class="modalhead"><h2 id="authTitle">Entrar no DOM ALPHA AJATO</h2><button type="button" class="close" data-act="close-auth">×</button></div>
   <div id="authBody"></div>
 </div></div>
 <div class="modalback hidden" id="genericModal"><div class="modal">
-  <div class="modalhead"><h2 id="genericTitle"></h2><button class="close" onclick="closeGeneric()">×</button></div>
+  <div class="modalhead"><h2 id="genericTitle"></h2><button type="button" class="close" data-act="close-generic">×</button></div>
   <div id="genericBody"></div>
 </div></div>
 <div id="toast" style="position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#10243e;color:white;padding:12px 18px;border-radius:12px;z-index:50;display:none;max-width:90%;box-shadow:var(--shadow)"></div>
 
 <script>
 "use strict";
+/* ---------- armazenamento seguro: nunca derruba a pagina ---------------- */
+var memStore={};
+function lsGet(k){try{return localStorage.getItem(k);}catch(e){return (k in memStore)?memStore[k]:null;}}
+function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){memStore[k]=v;}}
+function lsDel(k){try{localStorage.removeItem(k);}catch(e){delete memStore[k];}}
+/* ---------- se algo falhar, avisa na tela em vez de "nada acontece" ------ */
+function showFatal(err){
+  try{
+    var msg=(err&&err.message)?err.message:String(err||"Erro inesperado");
+    var bar=document.getElementById("jsErrorBar");
+    if(!bar){
+      bar=document.createElement("div");
+      bar.id="jsErrorBar";
+      bar.style.cssText="position:fixed;left:0;right:0;top:0;z-index:9999;background:#c0392b;color:#fff;padding:10px 14px;font:13px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;text-align:center;box-shadow:0 4px 14px #0003";
+      (document.body||document.documentElement).appendChild(bar);
+    }
+    bar.textContent="Aviso tecnico: "+msg+" - atualize a pagina (Ctrl+F5).";
+  }catch(e){}
+}
+window.addEventListener("error",function(ev){ if(ev&&ev.error) showFatal(ev.error); });
+window.addEventListener("unhandledrejection",function(ev){ if(ev) showFatal(ev.reason); });
+/* ---------- botoes funcionam por delegacao (a prova de onclick bloqueado) */
+function closestAct(node){
+  while(node&&node.nodeType===1){
+    if(node.hasAttribute&&(node.hasAttribute("data-act")||node.hasAttribute("data-page"))) return node;
+    node=node.parentNode;
+  }
+  return null;
+}
+document.addEventListener("click",function(ev){
+  var el=closestAct(ev.target);
+  if(el){
+    var act=el.getAttribute("data-act");
+    var page=el.getAttribute("data-page");
+    try{
+      if(el.tagName==="A") ev.preventDefault();
+      if(act==="login") openAuth("login");
+      else if(act==="register") openAuth("register");
+      else if(act==="close-auth") closeAuth();
+      else if(act==="close-generic") closeGeneric();
+      else if(act==="logout"){ var lp=logout(); if(lp&&lp.catch) lp.catch(showFatal); }
+      else if(page){ var gp=go(page); if(gp&&gp.catch) gp.catch(showFatal); }
+    }catch(e){ showFatal(e); }
+    return;
+  }
+  if(ev.target&&ev.target.classList&&ev.target.classList.contains("modalback")){
+    if(ev.target.id==="authModal") closeAuth();
+    else if(ev.target.id==="genericModal") closeGeneric();
+  }
+},false);
+document.addEventListener("keydown",function(ev){
+  if(ev.key==="Escape"||ev.keyCode===27){
+    var am=document.getElementById("authModal");
+    if(am&&!am.classList.contains("hidden")) closeAuth();
+    var gm=document.getElementById("genericModal");
+    if(gm&&!gm.classList.contains("hidden")) closeGeneric();
+  }
+},false);
 var TOKEN_KEY = "daa_token";
 var PLANS = {
   professional: { name: "Alpha Diamante", durationMeses: 2 },
@@ -72,7 +131,7 @@ var PLANS = {
 var CATEGORIES = ["Alvenaria e estrutura","Pintura e acabamento","Elétrica","Hidráulica","Gesso e pisos","Telhados","Marcenaria","Limpeza pós-obra","Reformas em geral","Ajudante"];
 var UFS = ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"];
 var state = {
-  token: localStorage.getItem(TOKEN_KEY) || "",
+  token: lsGet(TOKEN_KEY) || "",
   me: null,
   page: "home",
   dashTab: "overview",
@@ -179,7 +238,7 @@ function localSeed(){
 }
 function loadLocal(){
   try{
-    var raw=localStorage.getItem(LOCAL_KEY);
+    var raw=lsGet(LOCAL_KEY);
     if(raw){
       var d=JSON.parse(raw);
       if(d&&Array.isArray(d.users)&&d.users.length){
@@ -191,12 +250,12 @@ function loadLocal(){
     }
   }catch(e){}
   var s=localSeed();
-  try{localStorage.setItem(LOCAL_KEY,JSON.stringify(s));}catch(e){}
+  lsSet(LOCAL_KEY,JSON.stringify(s));
   return s;
 }
 function ensureLocal(){if(!ldb) ldb=loadLocal();return ldb;}
 function saveLocal(){
-  try{localStorage.setItem(LOCAL_KEY,JSON.stringify(ldb));}
+  try{lsSet(LOCAL_KEY,JSON.stringify(ldb));}
   catch(e){toast("Armazenamento do navegador cheio. Use uma foto de perfil menor.");}
 }
 function localUserFromToken(){
@@ -780,7 +839,7 @@ async function localApi(method,url,body){
 }
 
 /* --------------------------------- API ----------------------------------- */
-function clearSession(){state.token="";state.me=null;localStorage.removeItem(TOKEN_KEY);}
+function clearSession(){state.token="";state.me=null;lsDel(TOKEN_KEY);}
 async function api(method,url,body){
   if(localMode) return localApi(method,url,body);
   var headers={"Content-Type":"application/json"};
@@ -814,12 +873,12 @@ function updateHeader(){
   var adminNav=document.getElementById("adminNav");
   if(adminNav) adminNav.classList.toggle("hidden",!isAdmin());
   if(!u){
-    h.innerHTML='<button class="btn outline" onclick="openAuth(\'login\')">Entrar</button><button class="btn gold" onclick="openAuth(\'register\')">Criar conta</button>';
+    h.innerHTML='<button type="button" class="btn outline" data-act="login">Entrar</button><button type="button" class="btn gold" data-act="register">Criar conta</button>';
     return;
   }
   h.innerHTML='<span style="color:#fff;font-weight:700">Olá, '+esc(String(u.name).split(" ")[0])+'</span>'+
-    '<button class="btn outline" onclick="go(\''+(isAdmin()?"admin":"dashboard")+'\')">'+(isAdmin()?"Painel":"Minha conta")+'</button>'+
-    '<button class="btn gold" onclick="logout()">Sair</button>';
+    '<button type="button" class="btn outline" data-page="'+(isAdmin()?"admin":"dashboard")+'">'+(isAdmin()?"Painel":"Minha conta")+'</button>'+
+    '<button type="button" class="btn gold" data-act="logout">Sair</button>';
 }
 
 function stopChatPolling(){
@@ -848,12 +907,25 @@ async function go(page){
 
 /* ------------------------------ login / cadastro ------------------------- */
 function openAuth(mode){
-  var isReg=mode==="register";
-  document.getElementById("authTitle").textContent=isReg?"Criar conta no DOM ALPHA AJATO":"Entrar no DOM ALPHA AJATO";
-  document.getElementById("authBody").innerHTML=isReg?registerForm():loginForm();
-  document.getElementById("authModal").classList.remove("hidden");
+  var isReg=(mode==="register");
+  var modal=document.getElementById("authModal");
+  var body=document.getElementById("authBody");
+  var title=document.getElementById("authTitle");
+  if(!modal||!body||!title){ toast("Nao foi possivel abrir o formulario. Atualize a pagina."); return; }
+  title.textContent=isReg?"Criar conta no DOM ALPHA AJATO":"Entrar no DOM ALPHA AJATO";
+  body.innerHTML=isReg?registerForm():loginForm();
+  modal.classList.remove("hidden");
+  modal.style.display="grid";
+  document.body.style.overflow="hidden";
+  setTimeout(function(){ var f=body.querySelector("input"); if(f){ try{f.focus();}catch(e){} } },60);
 }
-function closeAuth(){document.getElementById("authModal").classList.add("hidden");}
+function closeAuth(){
+  var modal=document.getElementById("authModal");
+  if(!modal) return;
+  modal.classList.add("hidden");
+  modal.style.display="";
+  document.body.style.overflow="";
+}
 function togglePw(inputId,btn){
   var input=document.getElementById(inputId);
   if(!input)return;
@@ -905,7 +977,7 @@ async function submitLogin(ev){
   var password=document.getElementById("loginPassword").value;
   try{
     var r=await api("POST","/auth/login",{email:email,password:password});
-    state.token=r.token;localStorage.setItem(TOKEN_KEY,r.token);state.me=r.user;
+    state.token=r.token;lsSet(TOKEN_KEY,r.token);state.me=r.user;
     closeAuth();updateHeader();
     toast("Bem-vindo, "+String(r.user.name).split(" ")[0]+"!");
     await go(state.page==="home"?"dashboard":state.page);
@@ -928,7 +1000,7 @@ async function submitRegister(ev){
   if(catEl&&body.role!=="client") body.category=catEl.value;
   try{
     var r=await api("POST","/auth/register",body);
-    state.token=r.token;localStorage.setItem(TOKEN_KEY,r.token);state.me=r.user;
+    state.token=r.token;lsSet(TOKEN_KEY,r.token);state.me=r.user;
     closeAuth();updateHeader();
     toast("Conta criada com sucesso!");
     await go("dashboard");
@@ -948,7 +1020,11 @@ function openGeneric(title,html){
   document.getElementById("genericModal").classList.remove("hidden");
 }
 function closeGeneric(){
-  document.getElementById("genericModal").classList.add("hidden");
+  var modal=document.getElementById("genericModal");
+  if(!modal) return;
+  modal.classList.add("hidden");
+  modal.style.display="";
+  document.body.style.overflow="";
   document.getElementById("genericBody").innerHTML="";
 }
 
@@ -1548,7 +1624,7 @@ async function resetCycle(){
   }
   updateHeader();
   try{await go("home");}catch(e){}
-})();
+})().catch(function(e){ showFatal(e); });
 </script>
 </body>
 </html>
