@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#10243e">
+<title>DOM ALPHA AJATO</title>
+<style>
+:root{--navy:#10243e;--navy2:#173858;--blue:#1769aa;--gold:#f2b544;--bg:#f3f6fa;--white:#fff;--text:#203044;--muted:#718096;--line:#e2e8f0;--green:#16834b;--red:#c0392b;--orange:#c66a13;--shadow:0 10px 30px rgba(16,36,62,.08)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}button,input,select,textarea{font:inherit}button{cursor:pointer}.hidden{display:none!important}
+header{background:linear-gradient(125deg,var(--navy),#1c466b);color:white;padding:18px max(18px,calc((100% - 1180px)/2));display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:12px}.logo{width:46px;height:46px;border-radius:14px;background:var(--gold);color:var(--navy);display:grid;place-items:center;font-size:24px;font-weight:900}.brand h1{margin:0;font-size:24px;letter-spacing:1px}.brand small{color:#d5e3f0}
+.header-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+nav{background:#fff;box-shadow:0 2px 10px #10243e12;position:sticky;top:0;z-index:10}
+.navinner{max-width:1180px;margin:auto;padding:0 16px;display:flex;gap:4px;overflow:auto}
+.navinner button{border:0;background:transparent;padding:14px 12px;color:var(--navy);font-weight:700;white-space:nowrap;border-bottom:3px solid transparent}
+.navinner button.active,.navinner button:hover{color:var(--blue);border-bottom-color:var(--gold)}
+main{max-width:1180px;margin:24px auto;padding:0 16px 50px}
+.hero{background:linear-gradient(120deg,#fff,#edf4fb);border:1px solid var(--line);border-radius:22px;padding:30px;display:grid;grid-template-columns:1.5fr 1fr;gap:24px;align-items:center;box-shadow:var(--shadow)}
+.hero h2{font-size:clamp(28px,5vw,42px);line-height:1.1;color:var(--navy);margin:8px 0 14px}.hero p{color:var(--muted);max-width:650px}.eyebrow{font-weight:800;color:var(--blue);letter-spacing:1.5px;font-size:12px}.hero-art{background:var(--navy);color:#fff;border-radius:18px;padding:24px;min-height:180px;display:flex;flex-direction:column;justify-content:center}.hero-art strong{font-size:34px;color:var(--gold)}
+.section{margin-top:28px}.section-head{display:flex;justify-content:space-between;align-items:end;gap:12px;flex-wrap:wrap;margin-bottom:14px}.section h2,.section-head h2{color:var(--navy);margin:0;font-size:24px}.muted{color:var(--muted)}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.grid.two{grid-template-columns:repeat(2,minmax(0,1fr))}.card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px;box-shadow:0 4px 15px #10243e08}.card h3{margin:0 0 8px;color:var(--navy)}.card p{margin:6px 0}.stat{font-size:28px;font-weight:850;color:var(--navy)}.tag{display:inline-block;padding:4px 9px;border-radius:20px;background:#edf3f9;color:var(--navy);font-size:12px;font-weight:800;margin:2px}.tag.gold{background:#fff2ce;color:#805400}.tag.green{background:#e6f6ed;color:#12683c}.tag.red{background:#fdecea;color:#9e2b22}
+.btn{border:0;border-radius:10px;background:var(--blue);color:white;padding:10px 15px;font-weight:750;display:inline-flex;align-items:center;justify-content:center;gap:7px;<｜begin▁of▁sentence｜>#dom-alpha-ajato{text-decoration:none}.btn:hover{filter:brightness(.94)}.btn.gold{background:var(--gold);color:var(--navy)}.btn.dark{background:var(--navy)}.btn.outline{background:white;color:var(--navy);border:1px solid var(--line)}.btn.danger{background:var(--red)}.btn.success{background:var(--green)}.btn.small{padding:7px 10px;font-size:13px}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+label{display:block;font-weight:750;color:var(--navy);font-size:13px;margin:10px 0 5px}input,select,textarea{width:100%;padding:11px 12px;border:1px solid #cfd8e3;border-radius:10px;background:#fff;color:var(--text);outline:none}input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px #1769aa18}textarea{min-height:100px;resize:vertical}.formgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.full{grid-column:1/-1}
+.notice{padding:13px 15px;border-radius:12px;background:#fff7df;border-left:4px solid var(--gold);margin:14px 0}.notice.red{background:#fff0ef;border-color:var(--red)}.notice.green{background:#eaf7ef;border-color:var(--green)}
+.empty{text-align:center;padding:28px;color:var(--muted);border:1px dashed #cbd5e1;border-radius:14px;background:#fff}
+.item{padding:15px 0;border-bottom:1px solid var(--line)}.item:last-child{border-bottom:0}.itemtop{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}.item h3{margin:0;color:var(--navy)}
+.modalback{position:fixed;inset:0;background:#081525b8;z-index:30;display:grid;place-items:center;padding:16px}.modal{background:white;width:min(560px,100%);max-height:92vh;overflow:auto;border-radius:18px;padding:22px;box-shadow:0 20px 60px #0004}.modalhead{display:flex;justify-content:space-between;align-items:center;gap:12px}.modalhead h2{margin:0;color:var(--navy)}.close{border:0;background:#edf2f7;border-radius:50%;width:34px;height:34px;font-size:20px}
+footer{background:var(--navy);color:#d5e3f0;padding:26px 16px;text-align:center}footer strong{color:var(--gold)}
+.tablewrap{overflow:auto}table{border-collapse:collapse;width:100%;background:#fff}th,td{text-align:left;padding:11px;border-bottom:1px solid var(--line);font-size:13px}th{color:var(--navy);background:#f5f8fb}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}.tabs button{border:1px solid var(--line);background:white;color:var(--navy);padding:8px 12px;border-radius:9px;font-weight:700}.tabs button.active{background:var(--navy);color:white}
+.password-wrap{display:flex;gap:6px;align-items:center}.password-wrap input{flex:1}.eye-btn{border:1px solid var(--line);background:#f7f9fc;border-radius:10px;padding:10px 12px;color:var(--navy);font-weight:800}.profile-photo{width:76px;height:76px;border-radius:50%;object-fit:cover;background:#e8eef5;display:grid;place-items:center;font-size:30px;color:var(--navy);border:2px solid #fff;box-shadow:0 2px 8px #10243e22}.pro-card{display:flex;gap:14px;align-items:flex-start}.pro-card .profile-photo{flex:0 0 76px}.gallery{display:flex;gap:8px;overflow:auto;margin-top:10px}.gallery img{width:110px;height:90px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}.chat-cta{background:#18a957;color:white;border:0;border-radius:999px;padding:10px 15px;font-weight:800}.wallet-number{font-size:25px;font-weight:850;color:var(--navy)}
+@media(max-width:760px){header{padding:14px}.hero{grid-template-columns:1fr;padding:22px}.grid,.grid.two{grid-template-columns:1fr}.formgrid{grid-template-columns:1fr}.full{grid-column:auto}.navinner button{padding:12px 9px;font-size:13px}main{margin-top:16px}.header-actions{width:100%}.header-actions .btn{flex:1}}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><div class="logo">D</div><div><h1>DOM ALPHA AJATO</h1><small>Plataforma de serviços, obras e reformas</small></div></div>
+  <div class="header-actions" id="headerActions">
+    <button class="btn outline" onclick="openAuth('login')">Entrar</button>
+    <button class="btn gold" onclick="openAuth('register')">Criar conta</button>
+  </div>
+</header>
+<nav><div class="navinner" id="nav">
+  <button class="active" data-page="home" onclick="go('home')">Início</button>
+  <button data-page="perfume" onclick="go('perfume')">PERFUME</button>
+  <button data-page="services" onclick="go('services')">Serviços</button>
+  <button data-page="plans" onclick="go('plans')">Planos</button>
+  <button data-page="opportunities" onclick="go('opportunities')">Oportunidades</button>
+  <button data-page="dashboard" onclick="go('dashboard')">Minha conta</button>
+  <button data-page="admin" id="adminNav" class="hidden" onclick="go('admin')">Administração</button>
+</div></nav>
+<main id="app"></main>
+<footer><strong>DOM ALPHA AJATO</strong><br>Conectando clientes, profissionais e ajudantes.<br><small>Ambiente de testes — dados locais.</small></footer>
+
+<div class="modalback hidden" id="authModal"><div class="modal">
+  <div class="modalhead"><h2 id="authTitle">Entrar no DOM ALPHA AJATO</h2><button class="close" onclick="closeAuth()">×</button></div>
+  <div id="authBody"></div>
+</div></div>
+<div class="modalback hidden" id="genericModal"><div class="modal">
+  <div class="modalhead"><h2 id="genericTitle"></h2><button class="close" onclick="closeGeneric()">×</button></div>
+  <div id="genericBody"></div>
+</div></div>
+<div id="toast" style="position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#10243e;color:white;padding:12px 18px;border-radius:12px;z-index:50;display:none;max-width:90%;box-shadow:var(--shadow)"></div>
+
+<script>
+"use strict";
+var TOKEN_KEY = "daa_token";
+var PLANS = {
+  professional: { name: "Alpha Diamante", durationMeses: 2 },
+  helper: { name: "Alpha Ouro", durationMeses: 2 }
+};
+var CATEGORIES = ["Alvenaria e estrutura","Pintura e acabamento","Elétrica","Hidráulica","Gesso e pisos","Telhados","Marcenaria","Limpeza pós-obra","Reformas em geral","Ajudante"];
+var UFS = ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"];
+var state = {
+  token: localStorage.getItem(TOKEN_KEY) || "",
+  me: null,
+  page: "home",
+  dashTab: "overview",
+  chatId: null,
+  chatTimer: null,
+  pros: [],
+  jobs: []
+};
+
+/* ------------------------------- utilidades ------------------------------ */
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
+function money(v){return Number(v||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});}
+function toast(msg){var el=document.getElementById("toast");el.textContent=msg;el.style.display="block";clearTimeout(window._toastTimer);window._toastTimer=setTimeout(function(){el.style.display="none";},3500);}
+function me(){return state.me;}
+function isAdmin(){return !!state.me && (state.me.role==="admin"||state.me.role==="owner");}
+function roleLabel(role){return role==="professional"?"Profissional":role==="helper"?"Ajudante":role==="admin"||role==="owner"?"Administração":"Cliente";}
+function initials(name){return String(name||"?").trim().split(/\s+/).slice(0,2).map(function(p){return p.charAt(0).toUpperCase();}).join("")||"?";}
+function fmtDate(iso){if(!iso)return "—";var d=new Date(iso);return isNaN(d)?"—":d.toLocaleDateString("pt-BR");}
+function fmtDateTime(iso){if(!iso)return "";var d=new Date(iso);return isNaN(d)?"":d.toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"});}
+function planActive(u){return !!(u&&u.plan&&new Date(u.plan.until).getTime()>Date.now());}
+function planTag(u){
+  if(!planActive(u)) return "";
+  return '<span class="tag gold">★ '+esc(u.plan.name)+'</span>';
+}
+function statusTag(s){
+  var cls=(s==="ativo"||s==="concluido"||s==="aceita")?"green":(s==="banido"||s==="cancelado"||s==="recusada")?"red":"gold";
+  return '<span class="tag '+cls+'">'+esc(s||"pendente")+'</span>';
+}
+function ratingText(u){
+  if(!u||!u.ratingCount) return "⭐ Sem avaliações";
+  return "⭐ "+Number(u.rating).toFixed(1)+" ("+u.ratingCount+")";
+}
+
+/* --------------------------------- API ----------------------------------- */
+function clearSession(){state.token="";state.me=null;localStorage.removeItem(TOKEN_KEY);}
+async function api(method,url,body){
+  var headers={"Content-Type":"application/json"};
+  if(state.token) headers.Authorization="Bearer "+state.token;
+  var res;
+  try{
+    res=await fetch("/api"+url,{method:method,headers:headers,body:body===undefined?undefined:JSON.stringify(body)});
+  }catch(e){
+    throw new Error("Sem conexão com o servidor. Tente novamente.");
+  }
+  var data=null;
+  try{data=await res.json();}catch(e){}
+  if(!res.ok){
+    if(res.status===401&&state.token) clearSession();
+    throw new Error((data&&data.error)||"Não foi possível concluir a operação.");
+  }
+  return data||{};
+}
+
+/* -------------------------------- cabeçalho ------------------------------ */
+function updateHeader(){
+  var h=document.getElementById("headerActions"),u=me();
+  var adminNav=document.getElementById("adminNav");
+  if(adminNav) adminNav.classList.toggle("hidden",!isAdmin());
+  if(!u){
+    h.innerHTML='<button class="btn outline" onclick="openAuth(\'login\')">Entrar</button><button class="btn gold" onclick="openAuth(\'register\')">Criar conta</button>';
+    return;
+  }
+  h.innerHTML='<span style="color:#fff;font-weight:700">Olá, '+esc(String(u.name).split(" ")[0])+'</span>'+
+    '<button class="btn outline" onclick="go(\''+(isAdmin()?"admin":"dashboard")+'\')">'+(isAdmin()?"Painel":"Minha conta")+'</button>'+
+    '<button class="btn gold" onclick="logout()">Sair</button>';
+}
+
+function stopChatPolling(){
+  if(state.chatTimer){clearInterval(state.chatTimer);state.chatTimer=null;}
+}
+
+async function go(page){
+  stopChatPolling();
+  if(page==="dashboard"&&!me()){openAuth("login");return;}
+  if(page==="admin"&&!isAdmin()){toast("Acesso restrito à administração.");return;}
+  state.page=page;
+  document.querySelectorAll("#nav button").forEach(function(b){b.classList.toggle("active",b.dataset.page===page);});
+  window.scrollTo({top:0,behavior:"smooth"});
+  try{
+    if(page==="home") await renderHome();
+    else if(page==="perfume") await renderPerfume();
+    else if(page==="services") await renderServices();
+    else if(page==="plans") await renderPlans();
+    else if(page==="opportunities") await renderOpportunities();
+    else if(page==="dashboard") await renderDashboard();
+    else if(page==="admin") await renderAdmin();
+  }catch(err){
+    document.getElementById("app").innerHTML='<div class="notice red">'+esc(err.message)+'</div>';
+  }
+}
+
+/* ------------------------------ login / cadastro ------------------------- */
+function openAuth(mode){
+  var isReg=mode==="register";
+  document.getElementById("authTitle").textContent=isReg?"Criar conta no DOM ALPHA AJATO":"Entrar no DOM ALPHA AJATO";
+  document.getElementById("authBody").innerHTML=isReg?registerForm():loginForm();
+  document.getElementById("authModal").classList.remove("hidden");
+}
+function closeAuth(){document.getElementById("authModal").classList.add("hidden");}
+function togglePw(inputId,btn){
+  var input=document.getElementById(inputId);
+  if(!input)return;
+  var show=input.type==="password";
+  input.type=show?"text":"password";
+  btn.textContent=show?"Ocultar":"Ver";
+}
+function authError(msg){
+  var box=document.getElementById("authError");
+  if(box) box.innerHTML=msg?'<div class="notice red">'+esc(msg)+'</div>':"";
+}
+function loginForm(){
+  return '<form onsubmit="submitLogin(event)">'+
+    '<div id="authError"></div>'+
+    '<label>E-mail</label><input id="loginEmail" type="email" required placeholder="seu@email.com" autocomplete="email">'+
+    '<label>Senha</label><div class="password-wrap"><input id="loginPassword" type="password" required placeholder="Sua senha" autocomplete="current-password"><button type="button" class="eye-btn" onclick="togglePw(\'loginPassword\',this)">Ver</button></div>'+
+    '<div class="actions"><button class="btn dark" type="submit" style="flex:1">Entrar</button></div>'+
+    '<p class="muted" style="text-align:center;margin-top:14px">Ainda não tem conta? <a href="#" onclick="openAuth(\'register\');return false;">Criar conta grátis</a></p>'+
+    '<div class="notice" style="font-size:13px">Conta de teste: <b>marina@domalphaajato.com</b> · senha <b>demo123</b></div>'+
+  '</form>';
+}
+function registerForm(){
+  return '<form onsubmit="submitRegister(event)">'+
+    '<div id="authError"></div>'+
+    '<div class="formgrid">'+
+      '<div class="full"><label>Nome completo</label><input id="regName" required minlength="3" placeholder="Seu nome e sobrenome" autocomplete="name"></div>'+
+      '<div class="full"><label>E-mail</label><input id="regEmail" type="email" required placeholder="seu@email.com" autocomplete="email"></div>'+
+      '<div class="full"><label>Senha</label><div class="password-wrap"><input id="regPassword" type="password" required minlength="6" placeholder="Mínimo 6 caracteres" autocomplete="new-password"><button type="button" class="eye-btn" onclick="togglePw(\'regPassword\',this)">Ver</button></div></div>'+
+      '<div><label>Você é</label><select id="regRole" onchange="onRoleChange()"><option value="client">Cliente (quero contratar)</option><option value="professional">Profissional (quero trabalhar)</option><option value="helper">Ajudante</option></select></div>'+
+      '<div><label>Telefone / WhatsApp</label><input id="regPhone" placeholder="(11) 90000-0000"></div>'+
+      '<div><label>Cidade</label><input id="regCity" placeholder="Sua cidade"></div>'+
+      '<div><label>UF</label><select id="regState">'+UFS.map(function(u){return '<option value="'+u+'">'+u+'</option>';}).join("")+'</select></div>'+
+      '<div class="full" id="regCategoryWrap" style="display:none"><label>Categoria de trabalho</label><select id="regCategory">'+CATEGORIES.map(function(c){return '<option value="'+esc(c)+'">'+esc(c)+'</option>';}).join("")+'</select></div>'+
+      '<div class="full"><label>Sobre você (opcional)</label><textarea id="regBio" placeholder="Experiência, especialidades, tempo de trabalho..."></textarea></div>'+
+    '</div>'+
+    '<div class="actions"><button class="btn gold" type="submit" style="flex:1">Criar minha conta</button></div>'+
+    '<p class="muted" style="text-align:center;margin-top:14px">Já tem conta? <a href="#" onclick="openAuth(\'login\');return false;">Entrar</a></p>'+
+  '</form>';
+}
+function onRoleChange(){
+  var role=document.getElementById("regRole").value;
+  var wrap=document.getElementById("regCategoryWrap");
+  if(wrap) wrap.style.display=(role==="client")?"none":"block";
+}
+async function submitLogin(ev){
+  ev.preventDefault();
+  authError("");
+  var email=document.getElementById("loginEmail").value.trim();
+  var password=document.getElementById("loginPassword").value;
+  try{
+    var r=await api("POST","/auth/login",{email:email,password:password});
+    state.token=r.token;localStorage.setItem(TOKEN_KEY,r.token);state.me=r.user;
+    closeAuth();updateHeader();
+    toast("Bem-vindo, "+String(r.user.name).split(" ")[0]+"!");
+    await go(state.page==="home"?"dashboard":state.page);
+  }catch(err){authError(err.message);}
+}
+async function submitRegister(ev){
+  ev.preventDefault();
+  authError("");
+  var body={
+    name:document.getElementById("regName").value.trim(),
+    email:document.getElementById("regEmail").value.trim(),
+    password:document.getElementById("regPassword").value,
+    role:document.getElementById("regRole").value,
+    phone:document.getElementById("regPhone").value.trim(),
+    city:document.getElementById("regCity").value.trim(),
+    state:document.getElementById("regState").value,
+    bio:document.getElementById("regBio").value.trim()
+  };
+  var catEl=document.getElementById("regCategory");
+  if(catEl&&body.role!=="client") body.category=catEl.value;
+  try{
+    var r=await api("POST","/auth/register",body);
+    state.token=r.token;localStorage.setItem(TOKEN_KEY,r.token);state.me=r.user;
+    closeAuth();updateHeader();
+    toast("Conta criada com sucesso!");
+    await go("dashboard");
+  }catch(err){authError(err.message);}
+}
+async function logout(){
+  try{await api("POST","/auth/logout",{});}catch(e){}
+  clearSession();updateHeader();
+  toast("Você saiu da sua conta.");
+  await go("home");
+}
+
+/* --------------------------------- modais -------------------------------- */
+function openGeneric(title,html){
+  document.getElementById("genericTitle").textContent=title;
+  document.getElementById("genericBody").innerHTML=html;
+  document.getElementById("genericModal").classList.remove("hidden");
+}
+function closeGeneric(){
+  document.getElementById("genericModal").classList.add("hidden");
+  document.getElementById("genericBody").innerHTML="";
+}
+
+/* ------------------------------ cartão de perfil ------------------------- */
+function proCard(u){
+  var photo=u.photo
+    ? '<div class="profile-photo"><img src="'+u.photo+'" alt="'+esc(u.name)+'" style="width:100%;height:100%;border-radius:50%;object-fit:cover"></div>'
+    : '<div class="profile-photo">'+esc(initials(u.name))+'</div>';
+  return '<div class="card"><div class="pro-card">'+photo+
+    '<div style="flex:1;min-width:0">'+
+      '<h3>'+esc(u.name)+' '+planTag(u)+'</h3>'+
+      '<p class="muted">'+esc(u.category||roleLabel(u.role))+' · '+esc(u.city||"Cidade não informada")+(u.state?"/"+esc(u.state):"")+'</p>'+
+      '<p>'+ratingText(u)+' · '+(u.jobsDone||0)+' obra(s) concluída(s)</p>'+
+      '<p class="muted">'+esc((u.bio||"Profissional disponível para novos serviços.").slice(0,130))+'</p>'+
+      '<div class="actions">'+
+        '<button class="btn small" onclick="openProfile(\''+u.id+'\')">Ver perfil</button>'+
+        '<button class="chat-cta" style="padding:7px 12px;font-size:13px" onclick="startChat(\''+u.id+'\')">Conversar</button>'+
+      '</div>'+
+    '</div></div></div>';
+}
+function jobCard(j){
+  var isPro=me()&&(me().role==="professional"||me().role==="helper");
+  var action="";
+  if(isPro&&j.status==="aberto") action='<button class="btn gold small" onclick="openProposalForm(\''+j.id+'\',\''+esc(j.title)+'\')">Enviar proposta</button>';
+  else if(!me()) action='<button class="btn small" onclick="openAuth(\'login\')">Entrar para propor</button>';
+  return '<div class="card"><div class="itemtop"><h3>'+esc(j.title)+'</h3>'+statusTag(j.status)+'</div>'+
+    '<p class="muted">'+esc(j.category)+' · '+esc(j.city||"Cidade não informada")+(j.state?"/"+esc(j.state):"")+'</p>'+
+    '<p>'+esc((j.description||"").slice(0,160))+'</p>'+
+    '<p><b>Orçamento:</b> '+money(j.budget)+' · <b>Propostas:</b> '+(j.proposalsCount||0)+'</p>'+
+    '<div class="actions">'+action+'<button class="btn outline small" onclick="openJobDetails(\''+j.id+'\')">Ver detalhes</button></div></div>';
+}
+
+/* --------------------------------- início -------------------------------- */
+async function renderHome(){
+  updateHeader();
+  var u=me();
+  document.getElementById("app").innerHTML=
+   '<section class="hero"><div><div class="eyebrow">SERVIÇOS E OPORTUNIDADES</div><h2>Encontre quem faz.<br>Encontre trabalho.</h2><p>DOM ALPHA AJATO conecta clientes a profissionais e ajudantes para obras, reformas e serviços. Veja perfis, trabalhos realizados, avaliações e negocie dentro da plataforma.</p><div class="actions"><button class="btn gold" onclick="openAuth(\'register\')">Começar agora</button><button class="btn outline" onclick="go(\'services\')">Conhecer serviços</button></div></div><div class="hero-art"><span>DOM ALPHA AJATO</span><strong>Conectando você</strong><p>Plataforma para trabalhadores de obra e reformas.</p></div></section>'+
+   '<section class="section"><div class="section-head"><div><h2>Encontre seu profissional</h2><p class="muted">Escolha uma categoria e procure na sua região ou em outra localidade.</p></div>'+(u&&u.role==="client"?'<button class="btn gold" onclick="openJobForm()">Publicar serviço</button>':'')+'</div>'+
+   '<div class="card"><div class="formgrid">'+
+     '<div><label>Tipo de profissional</label><select id="homeCategory" onchange="filterPros()"><option value="">Todas as categorias</option>'+CATEGORIES.map(function(c){return '<option value="'+esc(c)+'">'+esc(c)+'</option>';}).join("")+'</select></div>'+
+     '<div><label>Buscar por nome</label><input type="text" id="homeSearch" oninput="filterPros()" placeholder="Nome da pessoa"></div>'+
+   '</div></div>'+
+   '<div id="homeResults" class="grid" style="margin-top:16px"></div></section>'+
+   '<section class="section"><div class="section-head"><div><h2>Serviços publicados</h2><p class="muted">Vagas e orçamentos abertos agora.</p></div><button class="btn outline" onclick="go(\'opportunities\')">Ver todos</button></div><div id="homeJobs" class="grid two"></div></section>';
+
+  await Promise.all([filterPros(),loadHomeJobs()]);
+}
+async function filterPros(){
+  var box=document.getElementById("homeResults");
+  if(!box) return;
+  var category=(document.getElementById("homeCategory")||{}).value||"";
+  var q=(document.getElementById("homeSearch")||{}).value||"";
+  box.innerHTML='<div class="empty">Carregando profissionais...</div>';
+  try{
+    var r=await api("GET","/professionals?category="+encodeURIComponent(category)+"&q="+encodeURIComponent(q));
+    state.pros=r.professionals||[];
+    box.innerHTML=state.pros.length?state.pros.map(proCard).join(""):'<div class="empty">Nenhum profissional encontrado para esta busca.</div>';
+  }catch(err){
+    box.innerHTML='<div class="notice red">'+esc(err.message)+'</div>';
+  }
+}
+async function loadHomeJobs(){
+  var box=document.getElementById("homeJobs");
+  if(!box) return;
+  try{
+    var r=await api("GET","/jobs?status=aberto");
+    state.jobs=r.jobs||[];
+    var list=state.jobs.slice(0,4);
+    box.innerHTML=list.length?list.map(jobCard).join(""):'<div class="empty">Nenhum serviço publicado ainda.</div>';
+  }catch(err){
+    box.innerHTML='<div class="notice red">'+esc(err.message)+'</div>';
+  }
+}
+/*__P2__*/
+/*__P3__*/
+</script>
+</body>
+</html>
