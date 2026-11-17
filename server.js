@@ -45,6 +45,20 @@ const PLATFORM_PIX = {
   holder: clean(process.env.PLATFORM_PIX_HOLDER, 80) || 'DOM ALPHA AJATO'
 };
 
+/* A chave que recebe o dinheiro dos planos é sempre a chave PIX da conta do dono. */
+function platformPix() {
+  const owner = (db && Array.isArray(db.users)) ? db.users.find((u) => u.role === 'owner' && u.pixKey) : null;
+  if (owner) {
+    return {
+      key: owner.pixKey,
+      holder: owner.pixHolder || owner.name,
+      ownerName: owner.name,
+      source: 'owner'
+    };
+  }
+  return { key: PLATFORM_PIX.key, holder: PLATFORM_PIX.holder, ownerName: null, source: 'padrao' };
+}
+
 function normalizePix(type, rawKey) {
   const t = PIX_TYPES.includes(String(type || '').toLowerCase()) ? String(type).toLowerCase() : 'aleatoria';
   const digits = String(rawKey || '').replace(/\D/g, '');
@@ -135,11 +149,21 @@ function blankDB() {
 function seedDB() {
   const data = blankDB();
 
-  const admin = makeUser({
-    name: 'Administração Dom Alpha', email: 'admin@domalphaajato.com',
-    password: 'admin123', role: 'admin'
+  const owner = makeUser({
+    name: 'Dono DOM ALPHA AJATO', email: 'dono@domalphaajato.com',
+    password: 'dono123', role: 'owner'
   });
-  data.users.push(admin);
+  owner.pixKey = 'financeiro@domalphaajato.com';
+  owner.pixKeyType = 'email';
+  owner.pixHolder = 'DOM ALPHA AJATO';
+  data.users.push(owner);
+
+  for (const adm of [
+    { name: 'ADM 1 - Operação', email: 'adm1@domalphaajato.com', password: 'adm123' },
+    { name: 'ADM 2 - Suporte', email: 'adm2@domalphaajato.com', password: 'adm123' }
+  ]) {
+    data.users.push(makeUser({ ...adm, role: 'admin' }));
+  }
 
   const pros = [
     {
@@ -340,6 +364,11 @@ app.post('/api/auth/register', (req, res) => {
   const name = clean(body.name, 80);
   const email = clean(body.email, 120).toLowerCase();
   const password = String(body.password || '');
+  if (['admin', 'owner'].includes(String(body.role || ''))) {
+    return res.status(403).json({
+      error: 'Contas de administração e de dono não podem ser criadas pelo cadastro. Somente o dono define quem é administrador.'
+    });
+  }
   const role = ROLES.includes(body.role) ? body.role : 'client';
 
   if (name.length < 3) return res.status(400).json({ error: 'Informe seu nome completo.' });
@@ -494,7 +523,7 @@ app.get('/api/plans', (req, res) => {
   res.json({
     plans: PLANS,
     cycle: db.rankingCycle,
-    platformPix: { key: PLATFORM_PIX.key, holder: PLATFORM_PIX.holder }
+    platformPix: platformPix()
   });
 });
 
@@ -946,8 +975,12 @@ app.patch('/api/admin/users/:id', auth(), requireAdmin, (req, res) => {
     }
   }
   if (body.role !== undefined) {
-    if (![...ROLES, 'admin'].includes(body.role)) return res.status(400).json({ error: 'Perfil inválido.' });
+    if (req.user.role !== 'owner') {
+      return res.status(403).json({ error: 'Somente a conta do dono pode definir administradores.' });
+    }
+    if (!['client', 'professional', 'helper', 'admin'].includes(body.role)) return res.status(400).json({ error: 'Perfil inválido.' });
     if (user.id === req.user.id) return res.status(400).json({ error: 'Você não pode alterar o seu próprio perfil.' });
+    if (user.role === 'owner') return res.status(403).json({ error: 'A conta do dono não pode ser alterada.' });
     user.role = body.role;
   }
   writeDB();
