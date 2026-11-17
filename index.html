@@ -290,7 +290,7 @@ function proCard(u){
 function jobCard(j){
   var isPro=me()&&(me().role==="professional"||me().role==="helper");
   var action="";
-  if(isPro&&j.status==="aberto") action='<button class="btn gold small" onclick="openProposalForm(\''+j.id+'\',\''+esc(j.title)+'\')">Enviar proposta</button>';
+  if(isPro&&j.status==="aberto") action='<button class="btn gold small" onclick="openProposalForm(\''+j.id+'\')">Enviar proposta</button>';
   else if(!me()) action='<button class="btn small" onclick="openAuth(\'login\')">Entrar para propor</button>';
   return '<div class="card"><div class="itemtop"><h3>'+esc(j.title)+'</h3>'+statusTag(j.status)+'</div>'+
     '<p class="muted">'+esc(j.category)+' · '+esc(j.city||"Cidade não informada")+(j.state?"/"+esc(j.state):"")+'</p>'+
@@ -341,7 +341,284 @@ async function loadHomeJobs(){
     box.innerHTML='<div class="notice red">'+esc(err.message)+'</div>';
   }
 }
-/*__P2__*/
+/* ------------------------------- servicos -------------------------------- */
+async function renderServices(){
+  updateHeader();
+  var u=me();
+  document.getElementById("app").innerHTML=
+   '<section class="section"><div class="section-head"><div><div class="eyebrow">CATEGORIAS</div><h2>Serviços disponíveis</h2><p class="muted">Escolha uma categoria para ver os profissionais disponíveis.</p></div></div>'+
+   '<div class="grid">'+CATEGORIES.map(function(c){
+     return '<div class="card"><h3>'+esc(c)+'</h3><p class="muted">Profissionais e ajudantes de '+esc(c.toLowerCase())+' na sua região.</p><div class="actions"><button class="btn small" onclick="openCategory(\''+esc(c)+'\')">Ver profissionais</button></div></div>';
+   }).join("")+'</div></section>'+
+   '<section class="section"><div class="section-head"><div><h2>Vagas abertas</h2><p class="muted">Serviços publicados por clientes.</p></div>'+(u&&u.role==="client"?'<button class="btn gold" onclick="openJobForm()">Publicar serviço</button>':'')+'</div><div id="servicesJobs" class="grid two"></div></section>';
+  var box=document.getElementById("servicesJobs");
+  try{
+    var r=await api("GET","/jobs?status=aberto");
+    box.innerHTML=(r.jobs&&r.jobs.length)?r.jobs.map(jobCard).join(""):'<div class="empty">Nenhuma vaga aberta agora.</div>';
+  }catch(e){box.innerHTML='<div class="notice red">'+esc(e.message)+'</div>';}
+}
+async function openCategory(cat){
+  await go("home");
+  var sel=document.getElementById("homeCategory");
+  if(sel){sel.value=cat;filterPros();}
+}
+
+/* -------------------------------- ranking -------------------------------- */
+async function renderPerfume(){
+  updateHeader();
+  var r;
+  try{r=await api("GET","/ranking");}catch(e){document.getElementById("app").innerHTML='<div class="notice red">'+esc(e.message)+'</div>';return;}
+  var pros=r.professional||[],helpers=r.helper||[],cycle=r.cycle||{};
+  function rows(list,emptyMsg){
+    if(!list.length) return '<div class="empty">'+emptyMsg+'</div>';
+    return list.map(function(u,i){
+      var medal=i===0?"🥇":i===1?"🥈":i===2?"🥉":(i+1)+"º";
+      return '<div class="item"><div class="itemtop"><div><b>'+medal+' '+esc(u.name)+'</b> '+planTag(u)+
+        '<div class="muted">'+esc(u.category||roleLabel(u.role))+' · '+esc(u.city||"Cidade não informada")+'</div></div>'+
+        '<div style="text-align:right"><span class="tag gold">'+(u.cyclePoints||0)+' pts</span>'+
+        '<div class="muted" style="font-size:12px">'+ratingText(u)+'</div></div></div>'+
+        '<div class="actions"><button class="btn small" onclick="openProfile(\''+u.id+'\')">Ver perfil</button>'+
+        '<button class="chat-cta" style="padding:6px 11px;font-size:12px" onclick="startChat(\''+u.id+'\')">Conversar</button></div></div>';
+    }).join("");
+  }
+  var cycleInfo=cycle.end?("Ciclo atual termina em <b>"+fmtDate(cycle.end)+"</b>"):"Ciclo de divulgação de 2 meses";
+  document.getElementById("app").innerHTML=
+   '<section class="section"><div class="section-head"><div><div class="eyebrow">RANKING PERFUME</div><h2>Classificação dos dois meses</h2><p class="muted">'+cycleInfo+'. Quem assina um plano ganha pontos e aparece primeiro nas buscas.</p></div><button class="btn gold" onclick="go(\'plans\')">Ver planos</button></div>'+
+   '<div class="grid two"><div class="card"><h3>🏆 Profissionais</h3>'+rows(pros,"Nenhum profissional cadastrado ainda.")+'</div>'+
+   '<div class="card"><h3>🥇 Ajudantes</h3>'+rows(helpers,"Nenhum ajudante cadastrado ainda.")+'</div></div></section>'+
+   '<section class="section"><div class="card"><h3>Como funciona o PERFUME</h3><p class="muted">É o ranking de divulgação do DOM ALPHA AJATO: os assinantes aparecem destacados no topo da lista e recebem mais propostas. Os pontos vêm do plano assinado, das propostas enviadas e dos serviços concluídos.</p><div class="actions"><button class="btn outline" onclick="go(\'plans\')">Quero aparecer no ranking</button><button class="btn outline" onclick="go(\'opportunities\')">Ver oportunidades</button></div></div></section>';
+}
+
+/* --------------------------------- planos -------------------------------- */
+async function renderPlans(){
+  updateHeader();
+  var r;
+  try{r=await api("GET","/plans");}catch(e){document.getElementById("app").innerHTML='<div class="notice red">'+esc(e.message)+'</div>';return;}
+  var plans=r.plans||{},u=me();
+  function planCard(key){
+    var p=plans[key];
+    if(!p) return "";
+    var mine=!!(u&&u.plan&&u.plan.key===key&&planActive(u));
+    var desc=key==="professional"?"Para profissionais autônomos e empresas que querem fechar mais obras.":"Para ajudantes que querem ser encontrados e chamados para trabalhos.";
+    return '<div class="card"><h3>'+esc(p.name)+' '+(mine?'<span class="tag green">Plano ativo</span>':'')+'</h3>'+
+      '<p class="stat">'+money(p.price)+'</p>'+
+      '<p class="muted">'+p.durationMeses+' meses de divulgação</p>'+
+      '<p><span class="tag gold">+'+p.points+' pontos no PERFUME</span></p>'+
+      '<p class="muted">'+desc+'</p>'+
+      (mine&&u.plan?'<p class="muted">Válido até '+fmtDate(u.plan.until)+'</p>':'')+
+      '<div class="actions"><button class="btn gold" onclick="subscribePlan(\''+key+'\')">'+(mine?"Renovar plano":"Assinar agora")+'</button></div></div>';
+  }
+  var current=u&&planActive(u)?('<div class="notice green">Seu plano <b>'+esc(u.plan.name)+'</b> está ativo até '+fmtDate(u.plan.until)+'. Você tem '+(u.cyclePoints||0)+' pontos no ranking.</div>'):'<div class="notice">Você ainda não tem plano ativo. Assine para aparecer no topo do PERFUME e receber mais propostas.</div>';
+  document.getElementById("app").innerHTML=
+   '<section class="section"><div class="section-head"><div><div class="eyebrow">PLANOS DE DIVULGAÇÃO</div><h2>Apareça no topo do PERFUME</h2></div></div>'+current+
+   '<div class="grid two">'+planCard("professional")+planCard("helper")+'</div></section>'+
+   '<section class="section"><div class="card"><h3>O que está incluído</h3><p>· Destaque dourado no seu perfil e nas buscas<br>· Prioridade no ranking PERFUME por 2 meses<br>· Pontos extras a cada serviço concluído<br>· Chat interno liberado com todos os clientes<br>· Selo de plano ativo no seu perfil</p><div class="actions"><button class="btn outline" onclick="go(\'perfume\')">Ver ranking</button></div></div></section>';
+}
+async function subscribePlan(key){
+  if(!me()){openAuth("login");return;}
+  try{
+    var r=await api("POST","/plans/subscribe",{plan:key});
+    state.me=r.user;
+    toast("Plano "+r.plan.name+" ativado!");
+    await go("perfume");
+  }catch(e){toast(e.message);}
+}
+
+/* ----------------------------- oportunidades ----------------------------- */
+async function renderOpportunities(){
+  updateHeader();
+  var u=me();
+  document.getElementById("app").innerHTML=
+   '<section class="section"><div class="section-head"><div><div class="eyebrow">OPORTUNIDADES</div><h2>Serviços publicados</h2><p class="muted">Encontre trabalho e envie sua proposta.</p></div>'+(u&&u.role==="client"?'<button class="btn gold" onclick="openJobForm()">Publicar serviço</button>':'')+'</div>'+
+   '<div class="card"><div class="formgrid"><div><label>Categoria</label><select id="oppCategory" onchange="loadJobs()"><option value="">Todas</option>'+CATEGORIES.map(function(c){return '<option value="'+esc(c)+'">'+esc(c)+'</option>';}).join("")+'</select></div>'+
+   '<div><label>Buscar serviço</label><input id="oppSearch" oninput="loadJobs()" placeholder="Ex: pintura de apartamento"></div></div></div>'+
+   '<div id="oppList" class="grid two" style="margin-top:16px"></div></section>';
+  await loadJobs();
+}
+async function loadJobs(){
+  var box=document.getElementById("oppList");
+  if(!box) return;
+  var cat=(document.getElementById("oppCategory")||{}).value||"";
+  var q=(document.getElementById("oppSearch")||{}).value||"";
+  box.innerHTML='<div class="empty">Carregando serviços...</div>';
+  try{
+    var r=await api("GET","/jobs?status=aberto&category="+encodeURIComponent(cat)+"&q="+encodeURIComponent(q));
+    box.innerHTML=(r.jobs&&r.jobs.length)?r.jobs.map(jobCard).join(""):'<div class="empty">Nenhum serviço encontrado.</div>';
+  }catch(e){box.innerHTML='<div class="notice red">'+esc(e.message)+'</div>';}
+}
+
+/* --------------------------- publicar servico ---------------------------- */
+function openJobForm(){
+  if(!me()){openAuth("login");return;}
+  openGeneric("Publicar serviço",
+   '<form onsubmit="submitJob(event)"><div id="jobError"></div>'+
+   '<label>Título do serviço</label><input id="jobTitle" required minlength="5" placeholder="Ex: Reforma de banheiro completo">'+
+   '<label>Categoria</label><select id="jobCategory">'+CATEGORIES.map(function(c){return '<option value="'+esc(c)+'">'+esc(c)+'</option>';}).join("")+'</select>'+
+   '<label>Descrição</label><textarea id="jobDescription" required minlength="10" placeholder="Explique o que precisa ser feito, medidas, materiais..."></textarea>'+
+   '<div class="formgrid"><div><label>Orçamento (R$)</label><input id="jobBudget" type="number" min="0" step="50" placeholder="0,00"></div>'+
+   '<div><label>Prazo desejado</label><input id="jobDeadline" type="date"></div>'+
+   '<div><label>Cidade</label><input id="jobCity" placeholder="Cidade da obra"></div>'+
+   '<div><label>UF</label><select id="jobState">'+UFS.map(function(u){return '<option value="'+u+'">'+u+'</option>';}).join("")+'</select></div></div>'+
+   '<div class="actions"><button class="btn gold" type="submit" style="flex:1">Publicar agora</button></div></form>');
+}
+async function submitJob(ev){
+  ev.preventDefault();
+  var box=document.getElementById("jobError");
+  box.innerHTML="";
+  var body={
+    title:document.getElementById("jobTitle").value.trim(),
+    category:document.getElementById("jobCategory").value,
+    description:document.getElementById("jobDescription").value.trim(),
+    budget:Number(document.getElementById("jobBudget").value)||0,
+    deadline:document.getElementById("jobDeadline").value,
+    city:document.getElementById("jobCity").value.trim(),
+    state:document.getElementById("jobState").value
+  };
+  try{
+    await api("POST","/jobs",body);
+    closeGeneric();
+    toast("Serviço publicado!");
+    await go(state.page==="home"?"opportunities":state.page);
+  }catch(e){box.innerHTML='<div class="notice red">'+esc(e.message)+'</div>';}
+}
+
+/* --------------------------- detalhes do servico ------------------------- */
+async function openJobDetails(id){
+  if(!me()){openAuth("login");return;}
+  try{
+    var r=await api("GET","/jobs/"+id);
+    var j=r.job,props=r.proposals||[],u=me();
+    var html='<div class="itemtop"><h3>'+esc(j.title)+'</h3>'+statusTag(j.status)+'</div>'+
+      '<p class="muted">'+esc(j.category)+" · "+esc(j.city||"—")+(j.state?"/"+esc(j.state):"")+'</p>'+
+      '<p>'+esc(j.description)+'</p>'+
+      '<p><b>Orçamento:</b> '+money(j.budget)+" · <b>Cliente:</b> "+esc(j.clientName)+(j.deadline?" · <b>Prazo:</b> "+fmtDate(j.deadline):"")+'</p>';
+    if(j.isOwner){
+      html+='<h3 style="margin-top:16px">Propostas recebidas ('+props.length+')</h3>';
+      html+=props.length?props.map(function(p){
+        return '<div class="item"><div class="itemtop"><div><b>'+esc(p.proName)+'</b> '+(p.proRating?ratingText(p.proRating):"")+'<div class="muted">'+fmtDateTime(p.createdAt)+'</div></div><div><span class="tag gold">'+money(p.price)+'</span> '+statusTag(p.status)+'</div></div>'+
+          '<p>'+esc(p.message)+'</p>'+(p.days?'<p class="muted">Prazo: '+p.days+' dia(s)</p>':'')+
+          (p.status==="pendente"&&j.status==="aberto"?'<div class="actions"><button class="btn success small" onclick="acceptProposal(\''+p.id+'\')">Aceitar e contratar</button><button class="btn danger small" onclick="rejectProposal(\''+p.id+'\')">Recusar</button></div>':'')+'</div>';
+      }).join(""):'<div class="empty">Nenhuma proposta recebida ainda.</div>';
+      if(j.status==="em_andamento") html+='<div class="actions"><button class="btn dark" onclick="completeJob(\''+j.id+'\')">Marcar como concluído</button></div>';
+      if(j.status==="concluido"){
+        html+='<h3 style="margin-top:16px">Avaliar o profissional</h3><form onsubmit="submitReview(event,\''+j.id+'\')"><div id="reviewError"></div>'+
+          '<label>Nota</label><select id="reviewStars"><option value="5">5 estrelas</option><option value="4">4 estrelas</option><option value="3">3 estrelas</option><option value="2">2 estrelas</option><option value="1">1 estrela</option></select>'+
+          '<label>Comentário</label><textarea id="reviewComment" placeholder="Como foi o serviço?"></textarea>'+
+          '<div class="actions"><button class="btn gold" type="submit">Enviar avaliação</button></div></form>';
+      }
+    }else{
+      html+=props.length?'<h3 style="margin-top:16px">Sua proposta</h3>'+props.map(function(p){return '<div class="item"><div class="itemtop"><b>'+money(p.price)+'</b>'+statusTag(p.status)+'</div><p>'+esc(p.message)+'</p></div>';}).join(""):'<p class="muted">Você ainda não enviou proposta para este serviço.</p>';
+    }
+    openGeneric("Detalhes do serviço",html);
+  }catch(e){toast(e.message);}
+}
+async function acceptProposal(id){
+  try{
+    var r=await api("POST","/proposals/"+id+"/accept",{});
+    closeGeneric();
+    toast("Proposta aceita! Profissional contratado.");
+    state.dashTab="chats";
+    state.chatId=r.chatId||null;
+    await go("dashboard");
+  }catch(e){toast(e.message);}
+}
+async function rejectProposal(id){
+  try{
+    await api("POST","/proposals/"+id+"/reject",{});
+    closeGeneric();
+    toast("Proposta recusada.");
+    await go(state.page);
+  }catch(e){toast(e.message);}
+}
+async function completeJob(id){
+  try{
+    await api("POST","/jobs/"+id+"/complete",{});
+    closeGeneric();
+    toast("Serviço concluído! Agora avalie o profissional.");
+    await go("dashboard");
+  }catch(e){toast(e.message);}
+}
+async function submitReview(ev,id){
+  ev.preventDefault();
+  var box=document.getElementById("reviewError");
+  box.innerHTML="";
+  try{
+    await api("POST","/jobs/"+id+"/review",{stars:Number(document.getElementById("reviewStars").value),comment:document.getElementById("reviewComment").value.trim()});
+    closeGeneric();
+    toast("Avaliação enviada. Obrigado!");
+    await go("dashboard");
+  }catch(e){box.innerHTML='<div class="notice red">'+esc(e.message)+'</div>';}
+}
+
+/* -------------------------------- propostas ------------------------------ */
+async function openProposalForm(jobId){
+  if(!me()){openAuth("login");return;}
+  var title="";
+  try{var r=await api("GET","/jobs/"+jobId);title=r.job.title;}catch(e){toast(e.message);return;}
+  openGeneric("Enviar proposta",
+   '<p class="muted">Serviço: <b>'+esc(title)+'</b></p>'+
+   '<form onsubmit="submitProposal(event,\''+jobId+'\')"><div id="proposalError"></div>'+
+   '<div class="formgrid"><div><label>Seu valor (R$)</label><input id="proposalPrice" type="number" min="1" step="50" required placeholder="0,00"></div>'+
+   '<div><label>Prazo em dias</label><input id="proposalDays" type="number" min="1" placeholder="Ex: 10"></div></div>'+
+   '<label>Mensagem para o cliente</label><textarea id="proposalMessage" required minlength="10" placeholder="Explique como você vai executar o serviço, materiais e disponibilidade."></textarea>'+
+   '<div class="actions"><button class="btn gold" type="submit" style="flex:1">Enviar proposta</button></div></form>');
+}
+async function submitProposal(ev,jobId){
+  ev.preventDefault();
+  var box=document.getElementById("proposalError");
+  box.innerHTML="";
+  try{
+    await api("POST","/proposals",{jobId:jobId,price:Number(document.getElementById("proposalPrice").value),days:Number(document.getElementById("proposalDays").value)||0,message:document.getElementById("proposalMessage").value.trim()});
+    closeGeneric();
+    toast("Proposta enviada ao cliente!");
+    state.dashTab="proposals";
+    await go("dashboard");
+  }catch(e){box.innerHTML='<div class="notice red">'+esc(e.message)+'</div>';}
+}
+
+/* --------------------------------- perfil -------------------------------- */
+async function openProfile(id){
+  try{
+    var r=await api("GET","/users/"+id);
+    var u=r.user,reviews=r.reviews||[],my=me();
+    var photo=u.photo?'<div class="profile-photo"><img src="'+u.photo+'" alt="'+esc(u.name)+'" style="width:100%;height:100%;border-radius:50%;object-fit:cover"></div>':'<div class="profile-photo">'+esc(initials(u.name))+'</div>';
+    var html='<div class="pro-card">'+photo+'<div style="flex:1;min-width:0"><h3>'+esc(u.name)+' '+planTag(u)+'</h3>'+
+      '<p class="muted">'+esc(u.category||roleLabel(u.role))+" · "+esc(u.city||"Cidade não informada")+(u.state?"/"+esc(u.state):"")+'</p>'+
+      '<p>'+ratingText(u)+" · "+(u.jobsDone||0)+" obra(s) concluída(s) · "+(u.cyclePoints||0)+" pts</p></div></div>'+
+      '<p style="margin-top:12px">'+esc(u.bio||"Este profissional ainda não escreveu uma descrição.")+'</p>'+
+      (u.phone?'<p class="muted">Contato: '+esc(u.phone)+'</p>':'')+
+      '<div class="actions">'+((my&&my.id!==u.id)?'<button class="chat-cta" onclick="startChat(\''+u.id+'\')">Conversar no chat</button><button class="btn outline small" onclick="reportUser(\''+u.id+'\')">Denunciar</button>':'')+'</div>'+
+      '<h3 style="margin-top:16px">Avaliações</h3>'+
+      (reviews.length?reviews.map(function(rv){return '<div class="item"><div class="itemtop"><b>'+esc(rv.fromName)+'</b><span class="tag gold">'+rv.stars+' ★</span></div><p>'+esc(rv.comment||"Sem comentário.")+'</p><div class="muted" style="font-size:12px">'+fmtDate(rv.createdAt)+'</div></div>';}).join(""):'<div class="empty">Nenhuma avaliação ainda.</div>');
+    openGeneric("Perfil do profissional",html);
+  }catch(e){toast(e.message);}
+}
+function reportUser(id){
+  openGeneric("Denunciar perfil",
+   '<form onsubmit="submitReport(event,\''+id+'\')"><div id="reportError"></div>'+
+   '<label>Motivo da denúncia</label><textarea id="reportReason" required minlength="5" placeholder="Descreva o problema"></textarea>'+
+   '<div class="actions"><button class="btn danger" type="submit" style="flex:1">Enviar denúncia</button></div></form>');
+}
+async function submitReport(ev,id){
+  ev.preventDefault();
+  var box=document.getElementById("reportError");
+  box.innerHTML="";
+  try{
+    await api("POST","/reports",{targetId:id,reason:document.getElementById("reportReason").value.trim()});
+    closeGeneric();
+    toast("Denúncia enviada para a administração.");
+  }catch(e){box.innerHTML='<div class="notice red">'+esc(e.message)+'</div>';}
+}
+async function startChat(userId){
+  if(!me()){openAuth("login");return;}
+  try{
+    var r=await api("POST","/chats",{userId:userId});
+    closeGeneric();
+    state.chatId=r.chat.id;
+    state.dashTab="chats";
+    await go("dashboard");
+  }catch(e){toast(e.message);}
+}
 /*__P3__*/
 </script>
 </body>
