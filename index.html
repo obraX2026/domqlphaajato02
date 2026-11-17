@@ -584,7 +584,7 @@ async function openProfile(id){
     var photo=u.photo?'<div class="profile-photo"><img src="'+u.photo+'" alt="'+esc(u.name)+'" style="width:100%;height:100%;border-radius:50%;object-fit:cover"></div>':'<div class="profile-photo">'+esc(initials(u.name))+'</div>';
     var html='<div class="pro-card">'+photo+'<div style="flex:1;min-width:0"><h3>'+esc(u.name)+' '+planTag(u)+'</h3>'+
       '<p class="muted">'+esc(u.category||roleLabel(u.role))+" · "+esc(u.city||"Cidade não informada")+(u.state?"/"+esc(u.state):"")+'</p>'+
-      '<p>'+ratingText(u)+" · "+(u.jobsDone||0)+" obra(s) concluída(s) · "+(u.cyclePoints||0)+" pts</p></div></div>'+
+      '<p>'+ratingText(u)+' · '+(u.jobsDone||0)+' obra(s) concluída(s) · '+(u.cyclePoints||0)+' pts</p></div></div>'+
       '<p style="margin-top:12px">'+esc(u.bio||"Este profissional ainda não escreveu uma descrição.")+'</p>'+
       (u.phone?'<p class="muted">Contato: '+esc(u.phone)+'</p>':'')+
       '<div class="actions">'+((my&&my.id!==u.id)?'<button class="chat-cta" onclick="startChat(\''+u.id+'\')">Conversar no chat</button><button class="btn outline small" onclick="reportUser(\''+u.id+'\')">Denunciar</button>':'')+'</div>'+
