@@ -83,7 +83,8 @@ test('cadastro de cliente e de profissional', async () => {
   const p = await call('POST', '/api/auth/register', {
     name: 'Profissional Teste', email: 'pro.teste@exemplo.com',
     password: 'senha123', role: 'professional', city: 'Sao Paulo',
-    state: 'SP', category: 'Reformas em geral'
+    state: 'SP', category: 'Reformas em geral',
+    pixKeyType: 'email', pixKey: 'pro.teste@exemplo.com', pixHolder: 'Profissional Teste'
   });
   assert.strictEqual(p.status, 201, JSON.stringify(p.json));
   proToken = p.json.token;
@@ -175,18 +176,66 @@ test('chat interno troca mensagens nos dois sentidos', async () => {
   assert.ok([401, 403].includes(forbidden.status));
 });
 
-test('plano pago coloca o profissional no ranking (PERFUME)', async () => {
-  const sub = await call('POST', '/api/plans/subscribe', { plan: 'professional' }, proToken);
+test('plano exige chave PIX e comprovante de pagamento PIX', async () => {
+  const semProva = await call('POST', '/api/plans/subscribe', { plan: 'professional' }, proToken);
+  assert.strictEqual(semProva.status, 400, JSON.stringify(semProva.json));
+  assert.strictEqual(semProva.json.code, 'pix_proof_required');
+  assert.ok(semProva.json.payment && semProva.json.payment.pixKey, 'deve informar a chave PIX da plataforma');
+
+  const sub = await call('POST', '/api/plans/subscribe', { plan: 'professional', pixProof: 'E123456789' }, proToken);
   assert.strictEqual(sub.status, 200, JSON.stringify(sub.json));
   assert.strictEqual(sub.json.plan.key, 'professional');
   assert.ok(sub.json.user.cyclePoints > 0, 'plano deve gerar pontos');
 
-  const wrongPlan = await call('POST', '/api/plans/subscribe', { plan: 'helper' }, proToken);
+  const wrongPlan = await call('POST', '/api/plans/subscribe', { plan: 'helper', pixProof: 'E1' }, proToken);
   assert.strictEqual(wrongPlan.status, 400);
 
   const ranking = await call('GET', '/api/ranking');
   assert.strictEqual(ranking.status, 200);
   assert.ok(JSON.stringify(ranking.json).includes('Profissional Teste'), 'ranking deve listar o profissional');
+});
+
+test('conta de ajudante: cadastro com PIX, plano Alpha Ouro e ranking proprio', async () => {
+  const h = await call('POST', '/api/auth/register', {
+    name: 'Ajudante Teste', email: 'ajudante.teste@exemplo.com',
+    password: 'senha123', role: 'helper', city: 'Sao Paulo', state: 'SP',
+    category: 'Ajudante', pixKeyType: 'telefone', pixKey: '(11) 98888-7777', pixHolder: 'Ajudante Teste'
+  });
+  assert.strictEqual(h.status, 201, JSON.stringify(h.json));
+  const helperToken = h.json.token;
+  assert.strictEqual(h.json.user.role, 'helper');
+  assert.ok(h.json.user.hasPix, 'ajudante deve sair com chave PIX cadastrada');
+  assert.strictEqual(h.json.user.pixKey, '11988887777', 'telefone da chave deve ser normalizado');
+
+  const pixInvalido = await call('PATCH', '/api/me', { pixKeyType: 'cpf', pixKey: '123' }, helperToken);
+  assert.strictEqual(pixInvalido.status, 400, 'CPF invalido deve ser recusado');
+
+  const sub = await call('POST', '/api/plans/subscribe', { plan: 'helper', pixProof: 'E987654321' }, helperToken);
+  assert.strictEqual(sub.status, 200, JSON.stringify(sub.json));
+  assert.strictEqual(sub.json.plan.key, 'helper');
+
+  const ranking = await call('GET', '/api/ranking');
+  assert.ok(JSON.stringify(ranking.json.helper || []).includes('Ajudante Teste'), 'ajudante deve aparecer no ranking de ajudantes');
+});
+
+test('cliente paga o profissional por PIX no servico contratado', async () => {
+  const details = await call('GET', '/api/jobs/' + jobId, undefined, clientToken);
+  assert.strictEqual(details.status, 200, JSON.stringify(details.json));
+  assert.ok(details.json.payment, 'cliente deve ver os dados de pagamento do contratado');
+  assert.strictEqual(details.json.payment.pixKey, 'pro.teste@exemplo.com');
+  assert.strictEqual(details.json.payment.pixHolder, 'Profissional Teste');
+  const contractId = details.json.payment.contractId;
+  assert.ok(contractId, 'contrato deve existir apos o aceite da proposta');
+
+  const paid = await call('POST', '/api/contracts/' + contractId + '/paid', { proof: 'E555444333' }, clientToken);
+  assert.strictEqual(paid.status, 200, JSON.stringify(paid.json));
+  assert.strictEqual(paid.json.contract.paymentMethod, 'pix');
+
+  const again = await call('POST', '/api/contracts/' + contractId + '/paid', { proof: 'x' }, clientToken);
+  assert.strictEqual(again.status, 400);
+
+  const proTries = await call('POST', '/api/contracts/' + contractId + '/paid', { proof: 'x' }, proToken);
+  assert.strictEqual(proTries.status, 403);
 });
 
 test('servico concluido soma obra e aceita avaliacao', async () => {
