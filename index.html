@@ -32,6 +32,22 @@ footer{background:var(--navy);color:#d5e3f0;padding:26px 16px;text-align:center}
 @media(max-width:760px){header{padding:14px}.hero{grid-template-columns:1fr;padding:22px}.grid,.grid.two{grid-template-columns:1fr}.formgrid{grid-template-columns:1fr}.full{grid-column:auto}.navinner button{padding:12px 9px;font-size:13px}main{margin-top:16px}.header-actions{width:100%}.header-actions .btn{flex:1}}
 body.auth-open>header,body.auth-open>nav,body.auth-open>main,body.auth-open>footer{visibility:hidden!important}
 body.auth-open{overflow:hidden}
+.pix-title{font-weight:800;color:var(--navy);margin:18px 0 2px;padding-top:14px;border-top:1px dashed var(--line);font-size:14px}
+.pix-box{background:linear-gradient(135deg,#f7fbff,#eef4fb);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:12px 0}
+.pix-row{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid #e6edf5;font-size:14px}
+.pix-row:last-child{border-bottom:0}.pix-row.total b{color:var(--navy);font-size:20px}
+.pix-key{display:flex;justify-content:space-between;align-items:center;gap:12px;background:#fff;border:1px dashed #b9cade;border-radius:12px;padding:12px 14px;margin:10px 0}
+.pix-key b{color:var(--navy);word-break:break-all}
+.pill{display:inline-flex;align-items:center;gap:6px;background:#e8f6ee;color:#12683c;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:800}
+.hero-stats{display:flex;gap:22px;flex-wrap:wrap;margin-top:20px}
+.hero-stats b{display:block;font-size:22px;color:var(--navy);line-height:1.2}
+.hero-stats span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;font-weight:800}
+.steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.step{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px;box-shadow:0 4px 15px #10243e08}
+.step .num{width:34px;height:34px;border-radius:10px;background:var(--navy);color:var(--gold);display:grid;place-items:center;font-weight:900;margin-bottom:10px}
+.band{background:linear-gradient(125deg,var(--navy),#1c466b);color:#fff;border-radius:20px;padding:26px;display:flex;justify-content:space-between;gap:18px;align-items:center;flex-wrap:wrap;margin-top:28px;box-shadow:var(--shadow)}
+.band h2{color:#fff;margin:0 0 6px;font-size:24px}.band p{color:#cfe0ef;margin:0}
+@media(max-width:760px){.steps{grid-template-columns:1fr}.hero-stats{gap:14px}.pix-key{flex-direction:column;align-items:flex-start}}
 </style>
 </head>
 <body>
@@ -887,6 +903,15 @@ function stopChatPolling(){
   if(state.chatTimer){clearInterval(state.chatTimer);state.chatTimer=null;}
 }
 
+function copyText(text){
+  var t=String(text||"");
+  try{
+    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t);}
+    else{var ta=document.createElement("textarea");ta.value=t;document.body.appendChild(ta);ta.select();document.execCommand("copy");document.body.removeChild(ta);}
+    toast("Chave copiada: "+t);
+  }catch(e){toast("Selecione a chave e copie manualmente.");}
+}
+var PIX_TYPES_UI=[["cpf","CPF"],["cnpj","CNPJ"],["email","E-mail"],["telefone","Telefone / WhatsApp"],["aleatoria","Chave aleatória"]];
 async function go(page){
   stopChatPolling();
   if(page==="dashboard"&&!me()){openAuth("login");return;}
@@ -956,7 +981,7 @@ function loginForm(){
     '<label>Senha</label><div class="password-wrap"><input id="loginPassword" type="password" required placeholder="Sua senha" autocomplete="current-password"><button type="button" class="eye-btn" onclick="togglePw(\'loginPassword\',this)">Ver</button></div>'+
     '<div class="actions"><button class="btn dark" type="submit" style="flex:1">Entrar</button></div>'+
     '<p class="muted" style="text-align:center;margin-top:14px">Ainda não tem conta? <a href="#" onclick="openAuth(\'register\');return false;">Criar conta grátis</a></p>'+
-    '<div class="notice" style="font-size:13px">Conta de teste: <b>marina@domalphaajato.com</b> · senha <b>demo123</b></div>'+
+    '<p class="muted" style="text-align:center;font-size:12px;margin-top:10px">Pagamentos e recebimentos são feitos por chave PIX.</p>'+
   '</form>';
 }
 function registerForm(){
@@ -971,6 +996,10 @@ function registerForm(){
       '<div><label>Cidade</label><input id="regCity" placeholder="Sua cidade"></div>'+
       '<div><label>UF</label><select id="regState">'+UFS.map(function(u){return '<option value="'+u+'">'+u+'</option>';}).join("")+'</select></div>'+
       '<div class="full" id="regCategoryWrap" style="display:none"><label>Categoria de trabalho</label><select id="regCategory">'+CATEGORIES.map(function(c){return '<option value="'+esc(c)+'">'+esc(c)+'</option>';}).join("")+'</select></div>'+
+      '<div class="full"><div class="pix-title">💠 Chave PIX para receber</div><p class="muted" style="margin:0 0 4px;font-size:13px">Todo pagamento no DOM ALPHA AJATO é por PIX. Profissionais e ajudantes precisam informar a chave onde vão receber.</p></div>'+
+      '<div><label>Tipo de chave PIX</label><select id="regPixType">'+PIX_TYPES_UI.map(function(t){return '<option value="'+t[0]+'">'+t[1]+'</option>';}).join("")+'</select></div>'+
+      '<div><label>Chave PIX</label><input id="regPixKey" placeholder="CPF, e-mail, telefone ou aleatória"></div>'+
+      '<div class="full"><label>Nome do titular da chave</label><input id="regPixHolder" placeholder="Como aparece no seu banco"></div>'+
       '<div class="full"><label>Sobre você (opcional)</label><textarea id="regBio" placeholder="Experiência, especialidades, tempo de trabalho..."></textarea></div>'+
     '</div>'+
     '<div class="actions"><button class="btn gold" type="submit" style="flex:1">Criar minha conta</button></div>'+
@@ -998,6 +1027,9 @@ async function submitLogin(ev){
 async function submitRegister(ev){
   ev.preventDefault();
   authError("");
+  var regRole=(document.getElementById("regRole")||{}).value||"client";
+  var pixKeyVal=((document.getElementById("regPixKey")||{}).value||"").trim();
+  if(regRole!=="client"&&!pixKeyVal){authError("Informe sua chave PIX: é por ela que você recebe os pagamentos dos serviços.");return;}
   var body={
     name:document.getElementById("regName").value.trim(),
     email:document.getElementById("regEmail").value.trim(),
@@ -1006,7 +1038,10 @@ async function submitRegister(ev){
     phone:document.getElementById("regPhone").value.trim(),
     city:document.getElementById("regCity").value.trim(),
     state:document.getElementById("regState").value,
-    bio:document.getElementById("regBio").value.trim()
+    bio:document.getElementById("regBio").value.trim(),
+    pixKeyType:(document.getElementById("regPixType")||{}).value||"",
+    pixKey:pixKeyVal,
+    pixHolder:((document.getElementById("regPixHolder")||{}).value||"").trim()
   };
   var catEl=document.getElementById("regCategory");
   if(catEl&&body.role!=="client") body.category=catEl.value;
@@ -1074,14 +1109,20 @@ async function renderHome(){
   updateHeader();
   var u=me();
   document.getElementById("app").innerHTML=
-   '<section class="hero"><div><div class="eyebrow">SERVIÇOS E OPORTUNIDADES</div><h2>Encontre quem faz.<br>Encontre trabalho.</h2><p>DOM ALPHA AJATO conecta clientes a profissionais e ajudantes para obras, reformas e serviços. Veja perfis, trabalhos realizados, avaliações e negocie dentro da plataforma.</p><div class="actions"><button class="btn gold" onclick="openAuth(\'register\')">Começar agora</button><button class="btn outline" onclick="go(\'services\')">Conhecer serviços</button></div></div><div class="hero-art"><span>DOM ALPHA AJATO</span><strong>Conectando você</strong><p>Plataforma para trabalhadores de obra e reformas.</p></div></section>'+
+   '<section class="hero"><div><span class="pill">✔ Pagamento seguro via PIX</span><h2>Encontre quem faz.<br>Encontre trabalho.</h2><p>DOM ALPHA AJATO conecta clientes a profissionais e ajudantes para obras, reformas e serviços. Veja perfis, trabalhos realizados, avaliações e negocie dentro da plataforma.</p><div class="actions"><button class="btn gold" onclick="openAuth(\'register\')">Começar agora</button><button class="btn outline" onclick="go(\'services\')">Conhecer serviços</button></div><div class="hero-stats"><div><b>PIX</b><span>Pagamento direto</span></div><div><b>Grátis</b><span>Criar conta</span></div><div><b>Chat</b><span>Negociação interna</span></div></div></div><div class="hero-art"><span>DOM ALPHA AJATO</span><strong>Conectando você</strong><p>Plataforma para trabalhadores de obra e reformas.</p><p style="color:var(--gold);font-weight:800;margin-top:14px">Receba e pague por chave PIX</p></div></section>'+
+   '<section class="section"><div class="section-head"><div><div class="eyebrow">COMO FUNCIONA</div><h2>Três passos para começar</h2></div></div><div class="steps">'+
+     '<div class="step"><div class="num">1</div><h3>Cadastre-se</h3><p class="muted">O cliente publica o serviço. Profissionais e ajudantes cadastram a chave PIX para receber.</p></div>'+
+     '<div class="step"><div class="num">2</div><h3>Negocie pelo chat</h3><p class="muted">Receba propostas, tire dúvidas no chat interno e combine valor e prazo.</p></div>'+
+     '<div class="step"><div class="num">3</div><h3>Pague por PIX</h3><p class="muted">O cliente paga na chave PIX do profissional e confirma o comprovante na plataforma.</p></div>'+
+   '</div></section>'+
    '<section class="section"><div class="section-head"><div><h2>Encontre seu profissional</h2><p class="muted">Escolha uma categoria e procure na sua região ou em outra localidade.</p></div>'+(u&&u.role==="client"?'<button class="btn gold" onclick="openJobForm()">Publicar serviço</button>':'')+'</div>'+
    '<div class="card"><div class="formgrid">'+
      '<div><label>Tipo de profissional</label><select id="homeCategory" onchange="filterPros()"><option value="">Todas as categorias</option>'+CATEGORIES.map(function(c){return '<option value="'+esc(c)+'">'+esc(c)+'</option>';}).join("")+'</select></div>'+
      '<div><label>Buscar por nome</label><input type="text" id="homeSearch" oninput="filterPros()" placeholder="Nome da pessoa"></div>'+
    '</div></div>'+
    '<div id="homeResults" class="grid" style="margin-top:16px"></div></section>'+
-   '<section class="section"><div class="section-head"><div><h2>Serviços publicados</h2><p class="muted">Vagas e orçamentos abertos agora.</p></div><button class="btn outline" onclick="go(\'opportunities\')">Ver todos</button></div><div id="homeJobs" class="grid two"></div></section>';
+   '<section class="section"><div class="section-head"><div><h2>Serviços publicados</h2><p class="muted">Vagas e orçamentos abertos agora.</p></div><button class="btn outline" onclick="go(\'opportunities\')">Ver todos</button></div><div id="homeJobs" class="grid two"></div></section>'+
+   '<div class="band"><div><h2>Quer aparecer no topo do PERFUME?</h2><p>Assine um plano e receba mais propostas. Pagamento por PIX.</p></div><div class="actions" style="margin:0"><button class="btn gold" onclick="go(\'plans\')">Ver planos</button><button class="btn outline" onclick="go(\'perfume\')">Ver ranking</button></div></div>';
 
   await Promise.all([filterPros(),loadHomeJobs()]);
 }
@@ -1186,12 +1227,45 @@ async function renderPlans(){
 }
 async function subscribePlan(key){
   if(!me()){openAuth("login");return;}
+  var r,u;
+  try{ r=await api("GET","/plans"); }catch(e){ toast(e.message); return; }
+  var p=(r.plans||{})[key];
+  if(!p){toast("Plano indisponível.");return;}
+  var pp=r.platformPix||{};
+  u=me();
+  if(!u.pixKey){
+    openGeneric("Cadastre sua chave PIX",
+      '<div class="notice">Para assinar o plano <b>'+esc(p.name)+'</b> você precisa cadastrar a chave PIX onde vai receber seus pagamentos.</div>'+
+      '<p class="muted">A chave fica salva no seu perfil e é usada pelos clientes para te pagar.</p>'+
+      '<div class="actions"><button class="btn gold" onclick="closeGeneric();state.dashTab=\'profile\';go(\'dashboard\')">Cadastrar chave PIX</button><button class="btn outline" onclick="closeGeneric()">Agora não</button></div>');
+    return;
+  }
+  openGeneric("Pagamento via PIX — "+p.name,
+    '<div class="pix-box">'+
+      '<div class="pix-row"><span>Plano</span><b>'+esc(p.name)+'</b></div>'+
+      '<div class="pix-row"><span>Período</span><b>'+p.durationMeses+' meses de divulgação</b></div>'+
+      '<div class="pix-row total"><span>Valor</span><b>'+money(p.price)+'</b></div>'+
+    '</div>'+
+    '<p class="muted" style="margin:12px 0 6px">Pague com PIX na chave oficial da plataforma:</p>'+
+    '<div class="pix-key"><div><div class="muted" style="font-size:12px">Chave PIX</div><b>'+esc(pp.key||"")+'</b><div class="muted" style="font-size:12px">Titular: '+esc(pp.holder||"DOM ALPHA AJATO")+'</div></div><button class="btn small" type="button" onclick="copyText(\''+esc(pp.key||"")+'\')">Copiar</button></div>'+
+    '<form onsubmit="confirmPlanPix(event,\''+key+'\')"><div id="planPixError"></div>'+
+      '<label>ID / comprovante da transação PIX</label><input id="planPixProof" required placeholder="Ex: E1234567890...">'+
+      '<div class="notice" style="font-size:13px">Depois de pagar, informe o identificador do comprovante para liberar o plano.</div>'+
+      '<div class="actions"><button class="btn gold" type="submit" style="flex:1">Já paguei — ativar plano</button></div>'+
+    '</form>'+
+    '<p class="muted" style="font-size:12px;margin-top:10px">Sua chave de recebimento: <b>'+esc(u.pixKey)+'</b></p>');
+}
+async function confirmPlanPix(ev,key){
+  ev.preventDefault();
+  var box=document.getElementById("planPixError");
+  if(box) box.innerHTML="";
   try{
-    var r=await api("POST","/plans/subscribe",{plan:key});
+    var r=await api("POST","/plans/subscribe",{plan:key,pixProof:((document.getElementById("planPixProof")||{}).value||"").trim()});
     state.me=r.user;
-    toast("Plano "+r.plan.name+" ativado!");
+    closeGeneric();
+    toast("Pagamento PIX confirmado! Plano "+r.plan.name+" ativado.");
     await go("perfume");
-  }catch(e){toast(e.message);}
+  }catch(e){ if(box) box.innerHTML='<div class="notice red">'+esc(e.message)+'</div>'; else toast(e.message); }
 }
 
 /* ----------------------------- oportunidades ----------------------------- */
@@ -1268,6 +1342,18 @@ async function openJobDetails(id){
           '<p>'+esc(p.message)+'</p>'+(p.days?'<p class="muted">Prazo: '+p.days+' dia(s)</p>':'')+
           (p.status==="pendente"&&j.status==="aberto"?'<div class="actions"><button class="btn success small" onclick="acceptProposal(\''+p.id+'\')">Aceitar e contratar</button><button class="btn danger small" onclick="rejectProposal(\''+p.id+'\')">Recusar</button></div>':'')+'</div>';
       }).join(""):'<div class="empty">Nenhuma proposta recebida ainda.</div>';
+      var pay=r.payment;
+      if(pay&&pay.pixKey){
+        html+='<h3 style="margin-top:16px">Pagamento por PIX</h3>'+
+          '<div class="pix-box"><div class="pix-row"><span>Profissional contratado</span><b>'+esc(pay.proName)+'</b></div>'+
+          (pay.amount!=null?'<div class="pix-row"><span>Valor combinado</span><b>'+money(pay.amount)+'</b></div>':'')+
+          '<div class="pix-row"><span>Forma de pagamento</span><b>PIX</b></div></div>'+
+          '<div class="pix-key"><div><div class="muted" style="font-size:12px">Chave PIX de '+esc(pay.proName)+'</div><b>'+esc(pay.pixKey)+'</b><div class="muted" style="font-size:12px">Titular: '+esc(pay.pixHolder||pay.proName)+'</div></div><button class="btn small" type="button" onclick="copyText(\''+esc(pay.pixKey)+'\')">Copiar</button></div>'+
+          (pay.paid?'<div class="notice green">Pagamento confirmado via PIX'+(pay.paidAt?' em '+fmtDateTime(pay.paidAt):'')+'.</div>':
+            (pay.contractId?'<form onsubmit="confirmJobPix(event,\''+pay.contractId+'\')"><div id="jobPixError"></div><label>ID / comprovante do PIX</label><input id="jobPixProof" placeholder="Identificador do comprovante"><div class="actions"><button class="btn success" type="submit">Confirmar pagamento PIX</button></div></form>':''));
+      }else if(pay){
+        html+='<div class="notice" style="margin-top:16px">O profissional contratado ainda não cadastrou a chave PIX. Peça para ele cadastrar em <b>Minha conta → Perfil</b>.</div>';
+      }
       if(j.status==="em_andamento") html+='<div class="actions"><button class="btn dark" onclick="completeJob(\''+j.id+'\')">Marcar como concluído</button></div>';
       if(j.status==="concluido"){
         html+='<h3 style="margin-top:16px">Avaliar o profissional</h3><form onsubmit="submitReview(event,\''+j.id+'\')"><div id="reviewError"></div>'+
@@ -1306,6 +1392,17 @@ async function completeJob(id){
     toast("Serviço concluído! Agora avalie o profissional.");
     await go("dashboard");
   }catch(e){toast(e.message);}
+}
+async function confirmJobPix(ev,contractId){
+  ev.preventDefault();
+  var box=document.getElementById("jobPixError");
+  if(box) box.innerHTML="";
+  try{
+    await api("POST","/contracts/"+contractId+"/paid",{proof:((document.getElementById("jobPixProof")||{}).value||"").trim()});
+    closeGeneric();
+    toast("Pagamento PIX confirmado! O profissional foi avisado.");
+    await go(state.page);
+  }catch(e){ if(box) box.innerHTML='<div class="notice red">'+esc(e.message)+'</div>'; else toast(e.message); }
 }
 async function submitReview(ev,id){
   ev.preventDefault();
@@ -1546,6 +1643,10 @@ async function dashProfile(box){
       '<div><label>UF</label><select id="pfState">'+UFS.map(function(s){return '<option value="'+s+'"'+(u.state===s?" selected":"")+'>'+s+'</option>';}).join("")+'</select></div>'+
       (isWorker?'<div class="full"><label>Categoria de trabalho</label><select id="pfCategory">'+CATEGORIES.map(function(c){return '<option value="'+esc(c)+'"'+(u.category===c?" selected":"")+'>'+esc(c)+'</option>';}).join("")+'</select></div>':'')+
       '<div class="full"><label>Sobre você</label><textarea id="pfBio" placeholder="Sua experiência e especialidades">'+esc(u.bio||"")+'</textarea></div>'+
+      '<div class="full"><div class="pix-title">💠 Chave PIX para receber</div><p class="muted" style="margin:0 0 4px;font-size:13px">'+(u.pixKey?('Chave cadastrada: <b>'+esc(u.pixKey)+'</b> · os clientes usam esta chave para te pagar.'):'Nenhuma chave cadastrada ainda. Sem ela você não recebe pagamentos nem assina plano.')+'</p></div>'+
+      '<div><label>Tipo de chave PIX</label><select id="pfPixType">'+PIX_TYPES_UI.map(function(t){return '<option value="'+t[0]+'"'+(u.pixKeyType===t[0]?" selected":"")+'>'+t[1]+'</option>';}).join("")+'</select></div>'+
+      '<div><label>Chave PIX</label><input id="pfPixKey" value="'+esc(u.pixKey||"")+'" placeholder="CPF, e-mail, telefone ou aleatória"></div>'+
+      '<div class="full"><label>Nome do titular da chave</label><input id="pfPixHolder" value="'+esc(u.pixHolder||u.name)+'"></div>'+
       '<div class="full"><label>Foto de perfil</label><input id="pfPhoto" type="file" accept="image/*" onchange="pickPhoto(this)"></div>'+
     '</div><div class="actions"><button class="btn gold" type="submit">Salvar alterações</button><button class="btn outline" type="button" onclick="logout()">Sair da conta</button></div></form></div>';
 }
@@ -1567,7 +1668,7 @@ async function saveProfile(ev){
   var box=document.getElementById("profileError");
   box.innerHTML="";
   var u=me();
-  var body={name:document.getElementById("pfName").value.trim(),phone:document.getElementById("pfPhone").value.trim(),city:document.getElementById("pfCity").value.trim(),state:document.getElementById("pfState").value,bio:document.getElementById("pfBio").value.trim()};
+  var body={name:document.getElementById("pfName").value.trim(),phone:document.getElementById("pfPhone").value.trim(),city:document.getElementById("pfCity").value.trim(),state:document.getElementById("pfState").value,bio:document.getElementById("pfBio").value.trim(),pixKeyType:(document.getElementById("pfPixType")||{}).value||"",pixKey:((document.getElementById("pfPixKey")||{}).value||"").trim(),pixHolder:((document.getElementById("pfPixHolder")||{}).value||"").trim()};
   var cat=document.getElementById("pfCategory");
   if(cat) body.category=cat.value;
   if(pendingPhoto) body.photo=pendingPhoto;
