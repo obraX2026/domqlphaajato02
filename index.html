@@ -1260,7 +1260,7 @@ async function openJobDetails(id){
     var html='<div class="itemtop"><h3>'+esc(j.title)+'</h3>'+statusTag(j.status)+'</div>'+
       '<p class="muted">'+esc(j.category)+" · "+esc(j.city||"—")+(j.state?"/"+esc(j.state):"")+'</p>'+
       '<p>'+esc(j.description)+'</p>'+
-      '<p><b>Orçamento:</b> a combinar · <b>Cliente:</b> "+esc(j.clientName)+(j.deadline?" · <b>Prazo:</b> "+fmtDate(j.deadline):"")+'</p>';
+      '<p><b>Orçamento:</b> a combinar'+" · <b>Cliente:</b> "+esc(j.clientName)+(j.deadline?" · <b>Prazo:</b> "+fmtDate(j.deadline):"")+'</p>';
     if(j.isOwner){
       html+='<h3 style="margin-top:16px">Propostas recebidas ('+props.length+')</h3>';
       html+=props.length?props.map(function(p){
