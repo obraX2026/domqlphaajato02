@@ -243,6 +243,27 @@ function writeDB() {
   fs.renameSync(tmp, DB_FILE);
 }
 
+function ensureOwnerAccounts() {
+  if (!db.users.some((u) => u.role === 'owner')) {
+    const owner = makeUser({
+      name: 'Dono DOM ALPHA AJATO', email: 'dono@domalphaajato.com',
+      password: 'dono123', role: 'owner'
+    });
+    owner.pixKey = 'financeiro@domalphaajato.com';
+    owner.pixKeyType = 'email';
+    owner.pixHolder = 'DOM ALPHA AJATO';
+    db.users.push(owner);
+  }
+  for (const adm of [
+    { name: 'ADM 1 - Operação', email: 'adm1@domalphaajato.com' },
+    { name: 'ADM 2 - Suporte', email: 'adm2@domalphaajato.com' }
+  ]) {
+    if (!db.users.some((u) => u.email === adm.email)) {
+      db.users.push(makeUser({ ...adm, password: 'adm123', role: 'admin' }));
+    }
+  }
+}
+
 function ensureDB() {
   fs.mkdirSync(DATA_DIR, { recursive: true });
   if (fs.existsSync(DB_FILE)) {
@@ -262,6 +283,7 @@ function ensureDB() {
     db.rankingCycle = { start: nowISO(), end: addMonths(new Date(), 2).toISOString() };
   }
   if (!db.users.length) db = seedDB();
+  ensureOwnerAccounts();
   writeDB();
 }
 
@@ -542,11 +564,12 @@ app.post('/api/plans/subscribe', auth(true), (req, res) => {
     });
   }
   const proof = clean(body.pixProof, 80);
+  const pix = platformPix();
   if (!proof) {
     return res.status(400).json({
       error: 'O pagamento é por PIX. Pague a chave da plataforma e informe o ID da transação.',
       code: 'pix_proof_required',
-      payment: { amount: plan.price, planName: plan.name, pixKey: PLATFORM_PIX.key, holder: PLATFORM_PIX.holder }
+      payment: { amount: plan.price, planName: plan.name, pixKey: pix.key, holder: pix.holder }
     });
   }
 
@@ -555,8 +578,13 @@ app.post('/api/plans/subscribe', auth(true), (req, res) => {
   addPoints(req.user, plan.points);
   db.ledger.push({
     id: uid('l'), uid: req.user.id, type: 'assinatura', method: 'pix', proof, amount: plan.price,
+    receiverPixKey: pix.key, receiverOwnerId: (db.users.find((u) => u.role === 'owner') || {}).id || null,
     desc: 'Assinatura ' + plan.name + ' (' + plan.durationMeses + ' meses) paga via PIX', date: nowISO()
   });
+  const ownerUser = db.users.find((u) => u.role === 'owner');
+  if (ownerUser) {
+    notify(ownerUser.id, 'Plano ' + plan.name + ' pago por PIX: R$ ' + plan.price + ' para a chave ' + pix.key + ' (' + req.user.name + ').');
+  }
   notify(req.user.id, 'Pagamento PIX registrado. Plano ' + plan.name + ' ativado! Você ganhou ' + plan.points + ' pontos e destaque no PERFUME.');
   writeDB();
   res.json({ user: pub(req.user, req.user), plan: req.user.plan, paid: true, proof });
