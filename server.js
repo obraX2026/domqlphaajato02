@@ -170,12 +170,12 @@ function seedDB() {
   const data = blankDB();
 
   const owner = makeUser({
-    name: 'Dono DOM ALPHA AJATO', email: 'dono@domalphaajato.com',
+    name: 'Caio da Silva de Souza', email: 'dono@domalphaajato.com',
     password: 'dono123', role: 'owner'
   });
   owner.pixKey = 'financeiro@domalphaajato.com';
   owner.pixKeyType = 'email';
-  owner.pixHolder = 'DOM ALPHA AJATO';
+  owner.pixHolder = 'Caio da Silva de Souza';
   data.users.push(owner);
 
   for (const adm of [
@@ -266,12 +266,12 @@ function writeDB() {
 function ensureOwnerAccounts() {
   if (!db.users.some((u) => u.role === 'owner')) {
     const owner = makeUser({
-      name: 'Dono DOM ALPHA AJATO', email: 'dono@domalphaajato.com',
+      name: 'Caio da Silva de Souza', email: 'dono@domalphaajato.com',
       password: 'dono123', role: 'owner'
     });
     owner.pixKey = 'financeiro@domalphaajato.com';
     owner.pixKeyType = 'email';
-    owner.pixHolder = 'DOM ALPHA AJATO';
+    owner.pixHolder = 'Caio da Silva de Souza';
     db.users.push(owner);
   }
   for (const adm of [
