@@ -1299,7 +1299,7 @@ async function subscribePlan(key){
   u=me();
   if(pp.source!=="owner"||!pp.key){
     openGeneric("Pagamento indisponível",
-      '<div class="notice red">O pagamento do plano está temporariamente indisponível: a chave PIX da conta do dono ainda não foi cadastrada.</div>'+PIX_KEY_FIX_HTML+
+      '<div class="notice red">O pagamento do plano está temporariamente indisponível: a chave PIX da conta do dono ainda não foi cadastrada.</div>'+
       '<div class="actions"><button class="btn outline" onclick="closeGeneric()">Fechar</button></div>');
     return;
   }
