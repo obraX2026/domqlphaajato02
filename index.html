@@ -1297,6 +1297,12 @@ async function subscribePlan(key){
   if(!p){toast("Plano indisponível.");return;}
   var pp=r.platformPix||{};
   u=me();
+  if(pp.source!=="owner"||!pp.key){
+    openGeneric("Pagamento indisponível",
+      '<div class="notice red">O pagamento do plano está temporariamente indisponível: a chave PIX da conta do dono ainda não foi cadastrada.</div>'+PIX_KEY_FIX_HTML+
+      '<div class="actions"><button class="btn outline" onclick="closeGeneric()">Fechar</button></div>');
+    return;
+  }
   if(!u.pixKey){
     openGeneric("Cadastre sua chave PIX",
       '<div class="notice">Para assinar o plano <b>'+esc(p.name)+'</b> você precisa cadastrar a chave PIX onde vai receber seus pagamentos.</div>'+

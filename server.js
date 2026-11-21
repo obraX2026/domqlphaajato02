@@ -60,23 +60,20 @@ const clean = (v, max) => String(v == null ? '' : v).trim().slice(0, max || 4000
 /* ---------------------------------- PIX --------------------------------- */
 
 const PIX_TYPES = ['cpf', 'cnpj', 'email', 'telefone', 'aleatoria'];
-const PLATFORM_PIX = {
-  key: clean(process.env.PLATFORM_PIX_KEY, 140) || 'financeiro@domalphaajato.com',
-  holder: clean(process.env.PLATFORM_PIX_HOLDER, 80) || 'DOM ALPHA AJATO'
-};
-
-/* A chave que recebe o dinheiro dos planos é sempre a chave PIX da conta do dono. */
+/* A chave que recebe o dinheiro dos planos é sempre a chave PIX da conta do dono.
+   Se o dono ficar sem chave cadastrada o pagamento é bloqueado — nunca caímos em
+   uma chave de exemplo, para o dinheiro não ir para uma conta que não é a do dono. */
 function platformPix() {
-  const owner = (db && Array.isArray(db.users)) ? db.users.find((u) => u.role === 'owner' && u.pixKey) : null;
-  if (owner) {
+  const ownerAccount = (db && Array.isArray(db.users)) ? db.users.find((u) => u.role === 'owner') : null;
+  if (ownerAccount && ownerAccount.pixKey) {
     return {
-      key: owner.pixKey,
-      holder: owner.pixHolder || owner.name,
-      ownerName: owner.name,
+      key: ownerAccount.pixKey,
+      holder: ownerAccount.pixHolder || ownerAccount.name,
+      ownerName: ownerAccount.name,
       source: 'owner'
     };
   }
-  return { key: PLATFORM_PIX.key, holder: PLATFORM_PIX.holder, ownerName: null, source: 'padrao' };
+  return { key: '', holder: '', ownerName: ownerAccount ? ownerAccount.name : null, source: 'ausente' };
 }
 
 function normalizePix(type, rawKey) {
@@ -600,6 +597,12 @@ app.post('/api/plans/subscribe', auth(true), (req, res) => {
   }
   const proof = clean(body.pixProof, 80);
   const pix = platformPix();
+  if (pix.source !== 'owner' || !pix.key) {
+    return res.status(400).json({
+      error: 'Pagamento indisponível: a chave PIX da conta do dono ainda não foi cadastrada.',
+      code: 'platform_pix_missing'
+    });
+  }
   if (!proof) {
     return res.status(400).json({
       error: 'O pagamento é por PIX. Pague a chave da plataforma e informe o ID da transação.',
