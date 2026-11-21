@@ -27,6 +27,26 @@ const PLANS = {
   helper: { key: 'helper', name: 'Alpha Ouro', durationMeses: 2, points: 80, price: 59.9 }
 };
 
+/* Profissional e ajudante novo recebem o plano completo grátis por 2 meses. */
+const TRIAL_MESES = 2;
+
+/* Ativa o plano de teste (2 meses grátis) para quem acabou de se cadastrar. */
+function startTrial(user) {
+  if (!user || !PLANS[user.role]) return null;
+  const plan = PLANS[user.role];
+  const until = addMonths(new Date(), TRIAL_MESES);
+  user.plan = {
+    key: plan.key,
+    name: plan.name,
+    since: nowISO(),
+    until: until.toISOString(),
+    trial: true
+  };
+  user.trialUsed = true;
+  user.trialUntil = until.toISOString();
+  return user.plan;
+}
+
 app.disable('x-powered-by');
 app.use(express.json({ limit: '8mb' }));
 
@@ -421,12 +441,19 @@ app.post('/api/auth/register', (req, res) => {
   }
   user.pixHolder = clean(body.pixHolder || user.name, 80);
 
+  /* Profissional e ajudante começam com 2 meses de plano grátis. */
+  const trial = startTrial(user);
+  if (trial) addPoints(user, PLANS[user.role].points);
+
   db.users.push(user);
   const token = crypto.randomBytes(24).toString('hex');
   db.sessions[token] = user.id;
   notify(user.id, 'Bem-vindo(a) ao DOM ALPHA AJATO! Complete seu perfil para aparecer nas buscas.');
+  if (trial) {
+    notify(user.id, 'Presente de boas-vindas: ' + TRIAL_MESES + ' meses do plano ' + trial.name + ' grátis, válido até ' + new Date(trial.until).toLocaleDateString('pt-BR') + '. Ative ou renove quando quiser no seu perfil.');
+  }
   writeDB();
-  res.status(201).json({ token, user: pub(user, user) });
+  res.status(201).json({ token, user: pub(user, user), trial: trial || null });
 });
 
 app.post('/api/auth/login', (req, res) => {
@@ -551,6 +578,7 @@ app.get('/api/ranking', (req, res) => {
 app.get('/api/plans', (req, res) => {
   res.json({
     plans: PLANS,
+    trialMeses: TRIAL_MESES,
     cycle: db.rankingCycle,
     platformPix: platformPix()
   });

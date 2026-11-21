@@ -198,7 +198,28 @@ function fmtDateTime(iso){if(!iso)return "";var d=new Date(iso);return isNaN(d)?
 function planActive(u){return !!(u&&u.plan&&new Date(u.plan.until).getTime()>Date.now());}
 function planTag(u){
   if(!planActive(u)) return "";
-  return '<span class="tag gold">★ '+esc(u.plan.name)+'</span>';
+  return '<span class="tag gold">★ '+esc(u.plan.name)+(u.plan.trial?' · grátis':'')+'</span>';
+}
+function planIsTrial(u){return !!(u&&u.plan&&u.plan.trial&&planActive(u));}
+/* Bloco do plano com o botão de ativar, usado no perfil e no painel. */
+function planStatusCard(u){
+  if(!u||u.role==="client"||u.role==="admin"||u.role==="owner") return "";
+  var key=(u.role==="helper")?"helper":"professional";
+  if(planActive(u)){
+    var dias=Math.max(0,Math.ceil((new Date(u.plan.until).getTime()-Date.now())/86400000));
+    return '<div class="notice green" style="margin-top:12px">'+
+      '<b>Plano '+esc(u.plan.name)+(u.plan.trial?' — grátis':'')+' ativo</b><br>'+
+      'Válido até <b>'+fmtDate(u.plan.until)+'</b> · '+dias+' dia(s) restante(s).'+
+      (u.plan.trial?'<br><span style="font-size:13px">Você ganhou 2 meses grátis ao criar a conta. Ative o plano pago quando quiser para não perder o destaque no PERFUME.</span>':'')+
+      '<div class="actions">'+
+        '<button class="btn gold" type="button" onclick="subscribePlan(\''+key+'\')">'+(u.plan.trial?'Ativar plano pago':'Renovar plano')+'</button>'+
+        '<button class="btn outline" type="button" onclick="go(\'plans\')">Ver planos</button>'+
+      '</div></div>';
+  }
+  return '<div class="notice" style="margin-top:12px">'+
+    '<b>Sem plano ativo</b><br>Assine para aparecer no topo do PERFUME e receber mais propostas.'+
+    '<div class="actions"><button class="btn gold" type="button" onclick="subscribePlan(\''+key+'\')">Ativar plano</button>'+
+    '<button class="btn outline" type="button" onclick="go(\'plans\')">Ver planos</button></div></div>';
 }
 function statusTag(s){
   var cls=(s==="ativo"||s==="concluido"||s==="aceita")?"green":(s==="banido"||s==="cancelado"||s==="recusada")?"red":"gold";
@@ -417,12 +438,19 @@ async function localApi(method,url,body){
     if(ldb.users.some(function(u){return u.email===email;})) throw lerr("Este e-mail já está cadastrado.",409);
     var nu=localMakeUser({name:name,email:email,password:pw,role:role,city:b.city,state:b.state,category:b.category,bio:b.bio,phone:b.phone});
     if(role!=="client"&&!nu.category) nu.category="Reformas em geral";
+    if(role==="professional"||role==="helper"){
+      var tp=({professional:{key:"professional",name:"Alpha Diamante",points:100},helper:{key:"helper",name:"Alpha Ouro",points:80}})[role];
+      nu.plan={key:tp.key,name:tp.name,since:new Date().toISOString(),until:addMonthsISO(2),trial:true};
+      nu.trialUsed=true;
+      localAddPoints(nu,tp.points);
+    }
     ldb.users.push(nu);
     var tk=luid("s");
     ldb.sessions[tk]=nu.id;
     localNotify(nu.id,"Bem-vindo(a) ao DOM ALPHA AJATO! Complete seu perfil para aparecer nas buscas.");
+    if(nu.plan) localNotify(nu.id,"Presente de boas-vindas: 2 meses do plano "+nu.plan.name+" grátis, válido até "+new Date(nu.plan.until).toLocaleDateString("pt-BR")+".");
     save();
-    return {token:tk,user:localPub(nu,nu)};
+    return {token:tk,user:localPub(nu,nu),trial:nu.plan||null};
   }
   if(seg[0]==="auth"&&seg[1]==="login"){
     var lemail=String(b.email||"").trim().toLowerCase();
@@ -1028,6 +1056,7 @@ function registerForm(){
       '<div class="full"><label>Nome do titular da chave</label><input id="regPixHolder" placeholder="Como aparece no seu banco"></div>'+
       '<div class="full"><label>Sobre você (opcional)</label><textarea id="regBio" placeholder="Experiência, especialidades, tempo de trabalho..."></textarea></div>'+
     '</div>'+
+    '<div class="notice green" style="font-size:13px">🎁 Profissional e ajudante ganham <b>2 meses de plano grátis</b> ao criar a conta.</div>'+
     '<div class="actions"><button class="btn gold" type="submit" style="flex:1">Criar minha conta</button></div>'+
     '<p class="muted" style="text-align:center;margin-top:14px">Já tem conta? <a href="#" onclick="openAuth(\'login\');return false;">Entrar</a></p>'+
   '</form>';
@@ -1075,7 +1104,7 @@ async function submitRegister(ev){
     var r=await api("POST","/auth/register",body);
     state.token=r.token;lsSet(TOKEN_KEY,r.token);state.me=r.user;
     closeAuth();updateHeader();
-    toast("Conta criada com sucesso!");
+    toast(r.trial?("Conta criada! Você ganhou 2 meses do plano "+r.trial.name+" grátis."):"Conta criada com sucesso!");
     await go("dashboard");
   }catch(err){authError(err.message);}
 }
@@ -1252,9 +1281,9 @@ async function renderPlans(){
       '<p><span class="tag gold">+'+p.points+' pontos no PERFUME</span></p>'+
       '<p class="muted">'+desc+'</p>'+
       (mine&&u.plan?'<p class="muted">Válido até '+fmtDate(u.plan.until)+'</p>':'')+
-      '<div class="actions"><button class="btn gold" onclick="subscribePlan(\''+key+'\')">'+(mine?"Renovar plano":"Assinar agora")+'</button></div></div>';
+      '<div class="actions"><button class="btn gold" onclick="subscribePlan(\''+key+'\')">'+(mine?(planIsTrial(u)?"Ativar plano pago":"Renovar plano"):"Assinar agora")+'</button></div></div>';
   }
-  var current=u&&planActive(u)?('<div class="notice green">Seu plano <b>'+esc(u.plan.name)+'</b> está ativo até '+fmtDate(u.plan.until)+'. Você tem '+(u.cyclePoints||0)+' pontos no ranking.</div>'):'<div class="notice">Você ainda não tem plano ativo. Assine para aparecer no topo do PERFUME e receber mais propostas.</div>';
+  var current=u&&planActive(u)?('<div class="notice green">Seu plano <b>'+esc(u.plan.name)+'</b>'+(u.plan.trial?' está ativo <b>grátis</b>':' está ativo')+' até '+fmtDate(u.plan.until)+'. Você tem '+(u.cyclePoints||0)+' pontos no ranking.'+(u.plan.trial?' Ative o plano pago quando quiser para continuar no destaque.':'')+'</div>'):'<div class="notice">Você ainda não tem plano ativo. Assine para aparecer no topo do PERFUME e receber mais propostas.</div>';
   document.getElementById("app").innerHTML=
    '<section class="section"><div class="section-head"><div><div class="eyebrow">PLANOS DE DIVULGAÇÃO</div><h2>Apareça no topo do PERFUME</h2></div></div>'+current+
    '<div class="grid two">'+planCard("professional")+planCard("helper")+'</div></section>'+
@@ -1491,6 +1520,7 @@ async function openProfile(id){
       (u.phone?'<p class="muted">Contato: '+esc(u.phone)+'</p>':'')+
       ((u.pixKey&&my&&(u.role==='professional'||u.role==='helper'))?'<div class="pix-key" style="margin-top:12px"><div><div class="muted" style="font-size:12px">Chave PIX de '+esc(u.name)+'</div><b>'+esc(u.pixKey)+'</b><div class="muted" style="font-size:12px">Titular: '+esc(u.pixHolder||u.name)+' · pague pelo seu banco e volte para enviar o comprovante</div></div><button class="btn small" type="button" onclick="copyText(\''+esc(u.pixKey)+'\')">Copiar</button></div>':'')+
       '<div class="actions">'+((my&&my.id!==u.id)?'<button class="chat-cta" onclick="startChat(\''+u.id+'\')">Conversar no chat</button><button class="btn outline small" onclick="reportUser(\''+u.id+'\')">Denunciar</button>':'')+'</div>'+
+      ((my&&my.id===u.id)?planStatusCard(my):'')+
       '<h3 style="margin-top:16px">Avaliações</h3>'+
       (reviews.length?reviews.map(function(rv){return '<div class="item"><div class="itemtop"><b>'+esc(rv.fromName)+'</b><span class="tag gold">'+rv.stars+' ★</span></div><p>'+esc(rv.comment||"Sem comentário.")+'</p><div class="muted" style="font-size:12px">'+fmtDate(rv.createdAt)+'</div></div>';}).join(""):'<div class="empty">Nenhuma avaliação ainda.</div>');
     openGeneric("Perfil do profissional",html);
@@ -1574,13 +1604,14 @@ async function dashOverview(box){
     kpi("🏆","Pontos PERFUME",(u.cyclePoints||0),planActive(u)?"Plano "+esc(u.plan.name):"Sem plano ativo")+
     kpi("✅","Obras concluídas",(u.jobsDone||0),ratingText(u))+
     kpi("🔔","Notificações",notes.unread||0,"não lidas")+
-    kpi("💳","Plano",planActive(u)?esc(u.plan.name):"Grátis",planActive(u)?"até "+fmtDate(u.plan.until):"assine para aparecer no topo")+
+    kpi("💳","Plano",planActive(u)?esc(u.plan.name):"Sem plano",planActive(u)?((u.plan.trial?"grátis até ":"até ")+fmtDate(u.plan.until)):"ative para aparecer no topo")+
    '</div>'+
    '<div class="panel" style="margin-top:16px"><h3 style="margin:0 0 4px">Ações rápidas</h3><p class="muted" style="margin:0 0 12px">Tudo o que você mais usa em um clique.</p><div class="actions" style="margin:0">'+
    '<button class="btn outline" onclick="setDashTab(\'proposals\')">Ver propostas</button>'+
    '<button class="btn outline" onclick="setDashTab(\'chats\')">Abrir conversas</button>'+
    '<button class="btn outline" onclick="go(\'opportunities\')">Ver oportunidades</button>'+
-   '<button class="btn gold" onclick="go(\'perfume\')">Ver ranking</button></div></div>';
+   '<button class="btn gold" onclick="go(\'perfume\')">Ver ranking</button>'+
+   ((u.role==="professional"||u.role==="helper")?'<button class="btn success" onclick="subscribePlan(\''+(u.role==="helper"?"helper":"professional")+'\')">Ativar plano</button>':'')+'</div></div>';
 }
 async function dashProposals(box){
   var r=await api("GET","/proposals");
@@ -1683,6 +1714,7 @@ async function dashProfile(box){
     (u.photo?'<div class="profile-photo"><img id="profilePreview" src="'+u.photo+'" style="width:100%;height:100%;border-radius:50%;object-fit:cover"></div>':'<div class="profile-photo" id="profilePreview">'+esc(initials(u.name))+'</div>')+
     '<div style="flex:1;min-width:0"><h3>'+esc(u.name)+' '+planTag(u)+'</h3><p class="muted">'+esc(roleLabel(u.role))+' · '+esc(u.city||"Cidade não informada")+(u.state?"/"+esc(u.state):"")+'</p><p>'+ratingText(u)+' · '+(u.jobsDone||0)+' obra(s) · '+(u.cyclePoints||0)+' pts</p>'+
     '<p class="muted">'+esc(u.email||"")+'</p></div></div>'+
+    planStatusCard(u)+
     '<form onsubmit="saveProfile(event)" style="margin-top:14px"><div id="profileError"></div><div class="formgrid">'+
       '<div><label>Nome completo</label><input id="pfName" value="'+esc(u.name)+'" minlength="3" required></div>'+
       '<div><label>Telefone / WhatsApp</label><input id="pfPhone" value="'+esc(u.phone||"")+'"></div>'+
