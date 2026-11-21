@@ -1489,6 +1489,7 @@ async function openProfile(id){
       '<p>'+ratingText(u)+' · '+(u.jobsDone||0)+' obra(s) concluída(s) · '+(u.cyclePoints||0)+' pts</p></div></div>'+
       '<p style="margin-top:12px">'+esc(u.bio||"Este profissional ainda não escreveu uma descrição.")+'</p>'+
       (u.phone?'<p class="muted">Contato: '+esc(u.phone)+'</p>':'')+
+      ((u.pixKey&&my&&(u.role==='professional'||u.role==='helper'))?'<div class="pix-key" style="margin-top:12px"><div><div class="muted" style="font-size:12px">Chave PIX de '+esc(u.name)+'</div><b>'+esc(u.pixKey)+'</b><div class="muted" style="font-size:12px">Titular: '+esc(u.pixHolder||u.name)+' · pague pelo seu banco e volte para enviar o comprovante</div></div><button class="btn small" type="button" onclick="copyText(\''+esc(u.pixKey)+'\')">Copiar</button></div>':'')+
       '<div class="actions">'+((my&&my.id!==u.id)?'<button class="chat-cta" onclick="startChat(\''+u.id+'\')">Conversar no chat</button><button class="btn outline small" onclick="reportUser(\''+u.id+'\')">Denunciar</button>':'')+'</div>'+
       '<h3 style="margin-top:16px">Avaliações</h3>'+
       (reviews.length?reviews.map(function(rv){return '<div class="item"><div class="itemtop"><b>'+esc(rv.fromName)+'</b><span class="tag gold">'+rv.stars+' ★</span></div><p>'+esc(rv.comment||"Sem comentário.")+'</p><div class="muted" style="font-size:12px">'+fmtDate(rv.createdAt)+'</div></div>';}).join(""):'<div class="empty">Nenhuma avaliação ainda.</div>');

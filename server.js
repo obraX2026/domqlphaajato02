@@ -333,8 +333,15 @@ function pub(u, viewer) {
     pixKeyMasked: u.pixKey ? maskPix(u.pixKey) : ''
   };
   const privileged = !!viewer && (viewer.id === u.id || ['admin', 'owner'].includes(viewer.role));
+  // Quem recebe pagamento (profissional/ajudante) tem a chave PIX liberada para
+  // qualquer usuário autenticado: é assim que o cliente copia a chave, paga pelo
+  // próprio banco e volta para enviar o comprovante. Visitante anônimo continua
+  // vendo apenas a versão mascarada (pixKeyMasked).
+  const canReceive = !!viewer && (u.role === 'professional' || u.role === 'helper');
   if (privileged) {
     out.email = u.email;
+  }
+  if (privileged || canReceive) {
     out.pixKey = u.pixKey || '';
     out.pixHolder = u.pixHolder || '';
   }
