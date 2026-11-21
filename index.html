@@ -48,6 +48,31 @@ body.auth-open{overflow:hidden}
 .band{background:linear-gradient(125deg,var(--navy),#1c466b);color:#fff;border-radius:20px;padding:26px;display:flex;justify-content:space-between;gap:18px;align-items:center;flex-wrap:wrap;margin-top:28px;box-shadow:var(--shadow)}
 .band h2{color:#fff;margin:0 0 6px;font-size:24px}.band p{color:#cfe0ef;margin:0}
 @media(max-width:760px){.steps{grid-template-columns:1fr}.hero-stats{gap:14px}.pix-key{flex-direction:column;align-items:flex-start}}
+/* ---- acabamento marketplace ---- */
+.hero{position:relative;overflow:hidden}
+.hero-art{box-shadow:inset 0 0 0 1px #ffffff14,0 18px 40px #10243e2e;background:linear-gradient(150deg,var(--navy),#1c466b)}
+.hero-art span{font-size:11px;letter-spacing:2.4px;font-weight:800;color:#a8c6de;text-transform:uppercase}
+.trust{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:16px}
+.trust>div{background:#fff;border:1px solid var(--line);border-radius:14px;padding:13px 14px;display:flex;gap:10px;align-items:center;font-size:13px;font-weight:700;color:var(--navy);box-shadow:0 4px 12px #10243e0a}
+.trust i{font-style:normal;font-size:17px}
+.cat-card{cursor:pointer}
+.cat-ico{width:46px;height:46px;border-radius:14px;background:#eef4fb;display:grid;place-items:center;font-size:22px;margin-bottom:10px}
+.card{transition:box-shadow .18s ease,transform .18s ease}
+.card:hover{box-shadow:0 12px 28px #10243e16;transform:translateY(-2px)}
+.user-bar{display:flex;gap:16px;align-items:center;justify-content:space-between;flex-wrap:wrap;background:linear-gradient(125deg,var(--navy),#1c466b);border-radius:20px;padding:22px;box-shadow:var(--shadow);color:#fff}
+.user-bar h2{color:#fff;margin:2px 0 0;font-size:24px}
+.user-meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
+.avatar{width:58px;height:58px;border-radius:50%;background:var(--gold);color:var(--navy);display:grid;place-items:center;font-weight:900;font-size:20px;flex:0 0 58px;box-shadow:0 6px 16px #0000002e}
+.kpi{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.kpi-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:0 4px 15px #10243e08;display:flex;gap:12px;align-items:center}
+.kpi-ico{width:44px;height:44px;border-radius:13px;background:#eef4fb;display:grid;place-items:center;font-size:20px;flex:0 0 44px}
+.kpi-card b{display:block;font-size:22px;color:var(--navy);line-height:1.15}
+.kpi-card span{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:800}
+.panel{background:#fff;border:1px solid var(--line);border-radius:18px;padding:18px;box-shadow:0 4px 15px #10243e08}
+.tabs{background:#fff;border:1px solid var(--line);border-radius:14px;padding:6px;gap:4px;box-shadow:0 2px 10px #10243e08}
+.tabs button{border:0;background:transparent;border-radius:10px;padding:9px 14px}
+.tabs button.active{background:var(--navy);color:#fff}
+@media(max-width:760px){.trust{grid-template-columns:repeat(2,minmax(0,1fr))}.kpi{grid-template-columns:1fr 1fr}.user-bar{padding:16px}.avatar{width:48px;height:48px;flex:0 0 48px;font-size:17px}}
 </style>
 </head>
 <body>
@@ -1106,16 +1131,23 @@ function jobCard(j){
 }
 
 /* --------------------------------- início -------------------------------- */
+var CAT_ICONS={"Alvenaria e estrutura":"🧱","Pintura e acabamento":"🎨","Elétrica":"⚡","Hidráulica":"🚿","Gesso e pisos":"🧰","Telhados":"🏠","Marcenaria":"🪚","Limpeza pós-obra":"🧽","Reformas em geral":"🔨","Ajudante":"👷"};
+function catIcon(c){
+  return '<div class="card cat-card" onclick="openCategory(\''+esc(c)+'\')"><div class="cat-ico">'+(CAT_ICONS[c]||"🛠️")+'</div><h3>'+esc(c)+'</h3><p class="muted" style="font-size:13px">Ver profissionais de '+esc(String(c).toLowerCase())+'</p><span class="tag gold">Abrir categoria</span></div>';
+}
 async function renderHome(){
   updateHeader();
   var u=me();
   document.getElementById("app").innerHTML=
-   '<section class="hero"><div><span class="pill">✔ Pagamento seguro via PIX</span><h2>Encontre quem faz.<br>Encontre trabalho.</h2><p>DOM ALPHA AJATO conecta clientes a profissionais e ajudantes para obras, reformas e serviços. Veja perfis, trabalhos realizados, avaliações e negocie dentro da plataforma.</p><div class="actions"><button class="btn gold" onclick="openAuth(\'register\')">Começar agora</button><button class="btn outline" onclick="go(\'services\')">Conhecer serviços</button></div><div class="hero-stats"><div><b>PIX</b><span>Pagamento direto</span></div><div><b>Grátis</b><span>Criar conta</span></div><div><b>Chat</b><span>Negociação interna</span></div></div></div><div class="hero-art"><span>DOM ALPHA AJATO</span><strong>Conectando você</strong><p>Plataforma para trabalhadores de obra e reformas.</p><p style="color:var(--gold);font-weight:800;margin-top:14px">Receba e pague por chave PIX</p></div></section>'+
+   '<section class="hero"><div><span class="pill">✔ Pagamento seguro via PIX</span><h2>Encontre quem faz.<br>Encontre trabalho.</h2><p>DOM ALPHA AJATO conecta clientes a profissionais e ajudantes para obras, reformas e serviços. Veja perfis, trabalhos realizados, avaliações e negocie dentro da plataforma.</p><div class="actions"><button class="btn gold" onclick="openAuth(\'register\')">Começar agora</button><button class="btn outline" onclick="go(\'services\')">Conhecer serviços</button></div><div class="hero-stats"><div><b id="heroPros">—</b><span>Profissionais</span></div><div><b id="heroJobs">—</b><span>Serviços abertos</span></div><div><b>PIX</b><span>Pagamento direto</span></div></div></div><div class="hero-art"><span>DOM ALPHA AJATO</span><strong>Conectando você</strong><p>Plataforma para trabalhadores de obra e reformas.</p><p style="color:var(--gold);font-weight:800;margin-top:14px">Receba e pague por chave PIX</p></div></section>'+
+   '<div class="trust"><div><i>🔒</i>Negociação dentro da plataforma</div><div><i>💬</i>Chat interno</div><div><i>⭐</i>Avaliações de clientes</div><div><i>🏆</i>Ranking PERFUME</div></div>'+
    '<section class="section"><div class="section-head"><div><div class="eyebrow">COMO FUNCIONA</div><h2>Três passos para começar</h2></div></div><div class="steps">'+
      '<div class="step"><div class="num">1</div><h3>Cadastre-se</h3><p class="muted">O cliente publica o serviço. Profissionais e ajudantes cadastram a chave PIX para receber.</p></div>'+
      '<div class="step"><div class="num">2</div><h3>Negocie pelo chat</h3><p class="muted">Receba propostas, tire dúvidas no chat interno e combine valor e prazo.</p></div>'+
      '<div class="step"><div class="num">3</div><h3>Pague por PIX</h3><p class="muted">O cliente paga na chave PIX do profissional e confirma o comprovante na plataforma.</p></div>'+
    '</div></section>'+
+   '<section class="section"><div class="section-head"><div><div class="eyebrow">CATEGORIAS</div><h2>O que você precisa hoje?</h2><p class="muted">Escolha uma categoria e veja quem está disponível.</p></div><button class="btn outline" onclick="go(\'services\')">Ver todas</button></div>'+
+   '<div class="grid">'+CATEGORIES.slice(0,6).map(catIcon).join("")+'</div></section>'+
    '<section class="section"><div class="section-head"><div><h2>Encontre seu profissional</h2><p class="muted">Escolha uma categoria e procure na sua região ou em outra localidade.</p></div>'+(u&&u.role==="client"?'<button class="btn gold" onclick="openJobForm()">Publicar serviço</button>':'')+'</div>'+
    '<div class="card"><div class="formgrid">'+
      '<div><label>Tipo de profissional</label><select id="homeCategory" onchange="filterPros()"><option value="">Todas as categorias</option>'+CATEGORIES.map(function(c){return '<option value="'+esc(c)+'">'+esc(c)+'</option>';}).join("")+'</select></div>'+
@@ -1136,6 +1168,7 @@ async function filterPros(){
   try{
     var r=await api("GET","/professionals?category="+encodeURIComponent(category)+"&q="+encodeURIComponent(q));
     state.pros=r.professionals||[];
+    var hp=document.getElementById("heroPros"); if(hp) hp.textContent=state.pros.length;
     box.innerHTML=state.pros.length?state.pros.map(proCard).join(""):'<div class="empty">Nenhum profissional encontrado para esta busca.</div>';
   }catch(err){
     box.innerHTML='<div class="notice red">'+esc(err.message)+'</div>';
@@ -1147,6 +1180,7 @@ async function loadHomeJobs(){
   try{
     var r=await api("GET","/jobs?status=aberto");
     state.jobs=r.jobs||[];
+    var hj=document.getElementById("heroJobs"); if(hj) hj.textContent=state.jobs.length;
     var list=state.jobs.slice(0,4);
     box.innerHTML=list.length?list.map(jobCard).join(""):'<div class="empty">Nenhum serviço publicado ainda.</div>';
   }catch(err){
@@ -1495,10 +1529,15 @@ async function renderDashboard(){
   var tabs=[["overview","Visão geral"],["proposals","Propostas"],["chats","Conversas"],["jobs",(u.role==="client"?"Meus serviços":"Oportunidades")],["notifications","Notificações"],["profile","Meu perfil"]];
   var isClient=u.role==="client"||u.role==="admin"||u.role==="owner";
   document.getElementById("app").innerHTML=
-   '<section class="section"><div class="section-head"><div><div class="eyebrow">MINHA CONTA</div><h2>Olá, '+esc(String(u.name).split(" ")[0])+'</h2>'+
-   '<p class="muted">'+esc(roleLabel(u.role))+(planActive(u)?" · Plano "+esc(u.plan.name)+" ativo":"")+'</p></div>'+
-   '<div class="actions">'+(isClient?'<button class="btn gold" onclick="openJobForm()">Publicar serviço</button>':'')+'<button class="btn outline" onclick="go(\'plans\')">Planos</button></div></div>'+
-   '<div class="tabs">'+tabs.map(function(t){return '<button class="'+(state.dashTab===t[0]?"active":"")+'" onclick="setDashTab(\''+t[0]+'\')">'+t[1]+'</button>';}).join("")+'</div>'+
+   '<section class="section"><div class="user-bar">'+
+   '<div style="display:flex;gap:14px;align-items:center;min-width:0">'+
+   '<div class="avatar">'+esc(initials(u.name))+'</div>'+
+   '<div><div class="eyebrow" style="color:var(--gold)">MINHA CONTA</div><h2>Olá, '+esc(String(u.name).split(" ")[0])+'</h2>'+
+   '<div class="user-meta"><span class="tag gold">'+esc(roleLabel(u.role))+'</span>'+
+   (planActive(u)?'<span class="tag green">Plano '+esc(u.plan.name)+'</span>':'<span class="tag">Sem plano ativo</span>')+
+   '<span class="tag">'+esc(u.email||"")+'</span></div></div></div>'+
+   '<div class="actions" style="margin:0">'+(isClient?'<button class="btn gold" onclick="openJobForm()">Publicar serviço</button>':'')+'<button class="btn outline" onclick="go(\'plans\')">Planos</button></div></div>'+
+   '<div class="tabs" style="margin-top:18px">'+tabs.map(function(t){return '<button class="'+(state.dashTab===t[0]?"active":"")+'" onclick="setDashTab(\''+t[0]+'\')">'+t[1]+'</button>';}).join("")+'</div>'+
    '<div id="dashBody"><div class="empty">Carregando...</div></div></section>';
   await renderDashTab();
 }
@@ -1527,15 +1566,20 @@ async function dashOverview(box){
   var notes=await api("GET","/notifications").catch(function(){return {notifications:[],unread:0};});
   var unreadChats=(chats.chats||[]).reduce(function(s,c){return s+(c.unread||0);},0);
   var pending=(props.proposals||[]).filter(function(p){return p.status==="pendente";}).length;
-  var stat=function(label,value,extra){return '<div class="card"><h3>'+label+'</h3><p class="stat">'+value+'</p><p class="muted">'+(extra||"")+'</p></div>';};
-  box.innerHTML='<div class="grid">'+
-    stat("Propostas",(props.proposals||[]).length,(props.mode==="sent"?"enviadas":"recebidas")+(pending?" · "+pending+" pendente(s)":""))+
-    stat("Conversas",(chats.chats||[]).length,unreadChats?unreadChats+" mensagem(ns) não lida(s)":"tudo em dia")+
-    stat("Pontos no PERFUME",(u.cyclePoints||0),planActive(u)?"Plano "+esc(u.plan.name):"Sem plano ativo")+
-    stat("Obras concluídas",(u.jobsDone||0),ratingText(u))+
-    stat("Notificações",notes.unread||0,"não lidas")+
-    stat("Plano",planActive(u)?esc(u.plan.name):"Grátis",planActive(u)?"válido até "+fmtDate(u.plan.until):"assine para aparecer no topo")+
-   '</div><div class="actions" style="margin-top:16px"><button class="btn outline" onclick="setDashTab(\'proposals\')">Ver propostas</button><button class="btn outline" onclick="setDashTab(\'chats\')">Abrir conversas</button><button class="btn gold" onclick="go(\'perfume\')">Ver ranking</button></div>';
+  var kpi=function(icon,label,value,extra){return '<div class="kpi-card"><div class="kpi-ico">'+icon+'</div><div><b>'+value+'</b><span>'+label+'</span><div class="muted" style="font-size:12px;margin-top:2px">'+(extra||"")+'</div></div></div>';};
+  box.innerHTML='<div class="kpi">'+
+    kpi("📩","Propostas",(props.proposals||[]).length,(props.mode==="sent"?"enviadas":"recebidas")+(pending?" · "+pending+" pendente(s)":""))+
+    kpi("💬","Conversas",(chats.chats||[]).length,unreadChats?unreadChats+" não lida(s)":"tudo em dia")+
+    kpi("🏆","Pontos PERFUME",(u.cyclePoints||0),planActive(u)?"Plano "+esc(u.plan.name):"Sem plano ativo")+
+    kpi("✅","Obras concluídas",(u.jobsDone||0),ratingText(u))+
+    kpi("🔔","Notificações",notes.unread||0,"não lidas")+
+    kpi("💳","Plano",planActive(u)?esc(u.plan.name):"Grátis",planActive(u)?"até "+fmtDate(u.plan.until):"assine para aparecer no topo")+
+   '</div>'+
+   '<div class="panel" style="margin-top:16px"><h3 style="margin:0 0 4px">Ações rápidas</h3><p class="muted" style="margin:0 0 12px">Tudo o que você mais usa em um clique.</p><div class="actions" style="margin:0">'+
+   '<button class="btn outline" onclick="setDashTab(\'proposals\')">Ver propostas</button>'+
+   '<button class="btn outline" onclick="setDashTab(\'chats\')">Abrir conversas</button>'+
+   '<button class="btn outline" onclick="go(\'opportunities\')">Ver oportunidades</button>'+
+   '<button class="btn gold" onclick="go(\'perfume\')">Ver ranking</button></div></div>';
 }
 async function dashProposals(box){
   var r=await api("GET","/proposals");
