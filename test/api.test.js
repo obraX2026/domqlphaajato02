@@ -306,3 +306,40 @@ test('valor do plano vai para a chave PIX da conta do dono', async () => {
   assert.strictEqual(plans.json.platformPix.key, owner.json.user.pixKey);
   assert.ok(plans.json.platformPix.key);
 });
+
+test('profissional e ajudante novos ganham 2 meses de plano gratis', async () => {
+  const stamp = Date.now();
+
+  const pro = await call('POST', '/api/auth/register', {
+    name: 'Trial Profissional', email: 'trialpro' + stamp + '@teste.com', password: 'senha123',
+    role: 'professional', category: 'Elétrica', city: 'Campinas', state: 'SP',
+    pixKeyType: 'email', pixKey: 'trialpro' + stamp + '@pix.com', pixHolder: 'Trial Pro'
+  });
+  assert.strictEqual(pro.status, 201, JSON.stringify(pro.json));
+  assert.ok(pro.json.trial, 'cadastro de profissional deve devolver o plano de teste');
+  assert.strictEqual(pro.json.user.plan.trial, true);
+  assert.strictEqual(pro.json.user.plan.key, 'professional');
+  assert.strictEqual(pro.json.user.plan.name, 'Alpha Diamante');
+  const diasPro = (new Date(pro.json.user.plan.until).getTime() - Date.now()) / 86400000;
+  assert.ok(diasPro > 55 && diasPro < 65, 'o plano gratis deve valer cerca de 2 meses, veio ' + diasPro.toFixed(1));
+  assert.ok(pro.json.user.cyclePoints >= 100, 'o plano de teste soma os pontos do ranking');
+
+  const helper = await call('POST', '/api/auth/register', {
+    name: 'Trial Ajudante', email: 'trialhelp' + stamp + '@teste.com', password: 'senha123',
+    role: 'helper', category: 'Ajudante', city: 'Belo Horizonte', state: 'MG',
+    pixKeyType: 'email', pixKey: 'trialhelp' + stamp + '@pix.com', pixHolder: 'Trial Helper'
+  });
+  assert.strictEqual(helper.status, 201, JSON.stringify(helper.json));
+  assert.strictEqual(helper.json.user.plan.key, 'helper');
+  assert.strictEqual(helper.json.user.plan.name, 'Alpha Ouro');
+  assert.strictEqual(helper.json.user.plan.trial, true);
+
+  const cli = await call('POST', '/api/auth/register', {
+    name: 'Trial Cliente', email: 'trialcli' + stamp + '@teste.com', password: 'senha123', role: 'client'
+  });
+  assert.strictEqual(cli.status, 201, JSON.stringify(cli.json));
+  assert.strictEqual(cli.json.user.plan, null, 'cliente nao recebe plano gratis');
+
+  const planos = await call('GET', '/api/plans');
+  assert.strictEqual(planos.json.trialMeses, 2);
+});
