@@ -343,3 +343,31 @@ test('profissional e ajudante novos ganham 2 meses de plano gratis', async () =>
   const planos = await call('GET', '/api/plans');
   assert.strictEqual(planos.json.trialMeses, 2);
 });
+
+test('pagamento do plano e bloqueado quando a conta do dono fica sem chave PIX', async () => {
+  const owner = await call('POST', '/api/auth/login', { email: 'dono@domalphaajato.com', password: 'dono123' });
+  assert.strictEqual(owner.status, 200, JSON.stringify(owner.json));
+  const ownerToken = owner.json.token;
+  const chaveOriginal = owner.json.user.pixKey;
+  assert.ok(chaveOriginal, 'a conta do dono comeca com chave PIX cadastrada');
+
+  const semChave = await call('PATCH', '/api/me', { pixKey: '' }, ownerToken);
+  assert.strictEqual(semChave.status, 200, JSON.stringify(semChave.json));
+
+  const plans = await call('GET', '/api/plans');
+  assert.strictEqual(plans.json.platformPix.source, 'ausente');
+  assert.strictEqual(plans.json.platformPix.key, '', 'sem chave do dono nao pode aparecer chave de exemplo');
+
+  const blocked = await call('POST', '/api/plans/subscribe', { plan: 'professional', pixProof: 'E1234567890' }, proToken);
+  assert.strictEqual(blocked.status, 400, JSON.stringify(blocked.json));
+  assert.strictEqual(blocked.json.code, 'platform_pix_missing');
+
+  const restore = await call('PATCH', '/api/me', {
+    pixKeyType: 'email', pixKey: chaveOriginal, pixHolder: 'Caio da Silva de Souza'
+  }, ownerToken);
+  assert.strictEqual(restore.status, 200, JSON.stringify(restore.json));
+
+  const back = await call('GET', '/api/plans');
+  assert.strictEqual(back.json.platformPix.source, 'owner');
+  assert.strictEqual(back.json.platformPix.key, chaveOriginal);
+});
